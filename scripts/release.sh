@@ -38,11 +38,17 @@ echo ""
 echo "Current version: $CURRENT_VERSION"
 echo ""
 
+# Calculate next versions for display
+IFS='.' read -r -a version_parts <<< "$CURRENT_VERSION"
+PATCH_VERSION="${version_parts[0]}.${version_parts[1]}.$((version_parts[2] + 1))"
+MINOR_VERSION="${version_parts[0]}.$((version_parts[1] + 1)).0"
+MAJOR_VERSION="$((version_parts[0] + 1)).0.0"
+
 # Ask for version bump type
 echo "What type of release is this?"
-echo "  1) patch (bug fixes: $CURRENT_VERSION -> $(npm version patch --no-git-tag-version 2>/dev/null && node -p "require('./package.json').version" && git checkout package.json))"
-echo "  2) minor (new features: $CURRENT_VERSION -> $(npm version minor --no-git-tag-version 2>/dev/null && node -p "require('./package.json').version" && git checkout package.json))"
-echo "  3) major (breaking changes: $CURRENT_VERSION -> $(npm version major --no-git-tag-version 2>/dev/null && node -p "require('./package.json').version" && git checkout package.json))"
+echo "  1) patch (bug fixes: $CURRENT_VERSION -> $PATCH_VERSION)"
+echo "  2) minor (new features: $CURRENT_VERSION -> $MINOR_VERSION)"
+echo "  3) major (breaking changes: $CURRENT_VERSION -> $MAJOR_VERSION)"
 echo "  4) custom version"
 echo "  5) cancel"
 echo ""
