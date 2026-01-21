@@ -1,23 +1,36 @@
-import { python } from 'pythonia';
 import * as path from 'path';
 import { PythonBridge, RLMConfig, RLMResult, RLMStats } from './bridge-interface';
 
 export class PythoniaBridge implements PythonBridge {
   private rlmModule: any = null;
+  private python: any = null;
 
   private async ensureRLMModule(): Promise<void> {
     if (this.rlmModule) return;
+
+    // Lazy load pythonia to avoid errors in Bun environments
+    if (!this.python) {
+      try {
+        const pythonia = await import('pythonia');
+        this.python = pythonia.python;
+      } catch (error) {
+        throw new Error(
+          'pythonia is not installed. Install it with: npm install pythonia\n' +
+          'Note: pythonia only works with Node.js runtime, not Bun'
+        );
+      }
+    }
 
     // Get path to recursive-llm Python module
     const rlmPath = path.join(__dirname, '..', 'recursive-llm', 'src', 'rlm');
     
     // Import sys module to add path
-    const sys = await python('sys');
+    const sys = await this.python('sys');
     const pathList = await sys.path;
     await pathList.insert(0, path.join(__dirname, '..', 'recursive-llm', 'src'));
     
     // Import the rlm module
-    this.rlmModule = await python('rlm');
+    this.rlmModule = await this.python('rlm');
   }
 
   public async completion(
@@ -61,9 +74,10 @@ export class PythoniaBridge implements PythonBridge {
   }
 
   public async cleanup(): Promise<void> {
-    if (this.rlmModule) {
-      python.exit();
+    if (this.python && this.rlmModule) {
+      this.python.exit();
       this.rlmModule = null;
+      this.python = null;
     }
   }
 }
