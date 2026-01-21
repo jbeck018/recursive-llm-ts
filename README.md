@@ -8,7 +8,13 @@ TypeScript bridge for [recursive-llm](https://github.com/grigori-gvadzabia/recur
 npm install recursive-llm-ts
 ```
 
-**That's it!** Python is bundled via [JSPyBridge](https://github.com/extremeheat/JSPyBridge) - no additional setup required.
+### Prerequisites
+
+- **Node.js** (not Bun) - This package uses `pythonia` which requires Node.js internals
+- **Python 3.9+** - Required for the underlying recursive-llm Python package
+- **pip** - Python package manager
+
+**Python dependencies are automatically installed** via the `postinstall` script when you `npm install`. The script will run `pip install -e` on the bundled Python package, installing `litellm`, `RestrictedPython`, and other dependencies.
 
 ## Usage
 
