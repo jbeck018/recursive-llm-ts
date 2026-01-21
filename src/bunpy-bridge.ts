@@ -20,35 +20,22 @@ export class BunpyBridge implements PythonBridge {
       );
     }
 
-    // Import sys and subprocess modules
+    // Import sys module to add path
     const sys = this.python.import('sys');
-    const subprocess = this.python.import('subprocess');
-    const os = this.python.import('os');
-    
-    // Install Python dependencies if not already installed
     const pythonPackagePath = path.join(__dirname, '..', 'recursive-llm');
-    try {
-      // Check if litellm is importable
-      try {
-        this.python.import('litellm');
-      } catch {
-        // Install dependencies using pip
-        const result = subprocess.run(
-          [sys.executable, '-m', 'pip', 'install', '-e', pythonPackagePath],
-          { capture_output: true, text: true, check: true }
-        );
-      }
-    } catch (installError: any) {
-      console.warn('[recursive-llm-ts] Failed to auto-install Python dependencies:', installError);
-      console.warn('[recursive-llm-ts] Please manually run: pip install -e', pythonPackagePath);
-    }
-
-    // Add Python source path
     const pythonSrcPath = path.join(pythonPackagePath, 'src');
     sys.path.insert(0, pythonSrcPath);
 
     // Import the rlm module
-    this.rlmModule = this.python.import('rlm');
+    try {
+      this.rlmModule = this.python.import('rlm');
+    } catch (error: any) {
+      throw new Error(
+        'Failed to import rlm module. Python dependencies may not be installed.\n' +
+        `Run: pip install -e ${pythonPackagePath}\n` +
+        `Original error: ${error.message || error}`
+      );
+    }
   }
 
   public async completion(

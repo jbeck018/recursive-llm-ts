@@ -14,13 +14,19 @@ npm install recursive-llm-ts
 - **Python 3.9+** - Required for the underlying recursive-llm Python package
 - **pip** - Python package manager
 
-**Python dependencies are automatically installed** via the `postinstall` script when you `npm install`. The script will run `pip install -e` on the bundled Python package, installing `litellm`, `RestrictedPython`, and other dependencies.
+### Python Dependencies
+
+**Important:** After installing the package, you must install Python dependencies:
+
+```bash
+cd node_modules/recursive-llm-ts/recursive-llm
+pip install -e .
+```
+
+This installs `litellm`, `RestrictedPython`, and other required Python packages.
 
 #### For Bun Users
-If using Bun, also install `bunpy`:
-```bash
-bun add bunpy
-```
+Bunpy is included as a dependency, so no additional installation needed.
 
 The package will automatically detect your runtime and use the appropriate Python bridge:
 - **Node.js** → uses `pythonia` (included)
