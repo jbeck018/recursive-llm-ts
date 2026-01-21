@@ -22,6 +22,7 @@ export interface RLMConfig {
   api_key?: string;
   max_depth?: number;
   max_iterations?: number;
+  pythonia_timeout?: number;  // Timeout in milliseconds for pythonia calls (default: 100000ms)
   [key: string]: any;
 }
 
@@ -52,12 +53,18 @@ export class RLMBridge {
     await this.ensureRLMModule();
 
     try {
-      // Create RLM instance with config
+      // Extract pythonia timeout (default: 100000ms)
+      const pythoniaTimeout = rlmConfig.pythonia_timeout || 100000;
+      
+      // Remove pythonia_timeout from config passed to Python
+      const { pythonia_timeout, ...pythonConfig } = rlmConfig;
+      
+      // Create RLM instance with config, passing timeout to pythonia
       const RLMClass = await this.rlmModule.RLM;
-      const rlmInstance = await RLMClass(model, rlmConfig);
+      const rlmInstance = await RLMClass(model, { ...pythonConfig, $timeout: pythoniaTimeout });
 
-      // Call completion method
-      const result = await rlmInstance.completion(query, context);
+      // Call completion method with timeout
+      const result = await rlmInstance.completion(query, context, { $timeout: pythoniaTimeout });
       const stats = await rlmInstance.stats;
 
       // Convert Python stats dict to JS object

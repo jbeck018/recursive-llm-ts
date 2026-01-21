@@ -87,6 +87,7 @@ interface RLMConfig {
   // Execution limits
   max_depth?: number;            // Maximum recursion depth (default: 5)
   max_iterations?: number;       // Maximum REPL iterations per call (default: 30)
+  pythonia_timeout?: number;     // Python bridge timeout in ms (default: 100000ms = 100s)
   
   // LiteLLM parameters - pass any additional parameters supported by LiteLLM
   api_version?: string;          // API version (e.g., for Azure)
@@ -172,6 +173,24 @@ const rlm = new RLM('openai/your-model', {
   api_base: 'https://your-custom-endpoint.com/v1',
   api_key: 'your-key-here'
 });
+```
+
+### Long-Running Processes
+
+For large documents or queue-based processing that may take longer than the default 100s timeout:
+
+```typescript
+const rlm = new RLM('gpt-4o-mini', {
+  max_iterations: 50,           // Allow more iterations for complex processing
+  pythonia_timeout: 600000,     // 10 minutes timeout for Python bridge
+  timeout: 300                  // 5 minutes timeout for LLM API calls
+});
+
+// Process very large document
+const result = await rlm.completion(
+  'Summarize all key points from this document',
+  veryLargeDocument
+);
 ```
 
 ### Other Providers
