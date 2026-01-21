@@ -1,6 +1,6 @@
 {
   "name": "recursive-llm-ts",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "TypeScript bridge for recursive-llm: Recursive Language Models for unbounded context processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,9 @@
     "dist",
     "recursive-llm/src",
     "recursive-llm/pyproject.toml",
-    "scripts/install-python-deps.js"
+    "scripts/install-python-deps.js",
+    "scripts/apply-patches.js",
+    "patches/core.py.patch"
   ],
   "scripts": {
     "build": "tsc",

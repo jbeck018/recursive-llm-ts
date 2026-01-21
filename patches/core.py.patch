@@ -1,0 +1,40 @@
+--- a/src/rlm/core.py
++++ b/src/rlm/core.py
+@@ -54,14 +54,31 @@ class RLM:
+             _current_depth: Internal current depth tracker
+             **llm_kwargs: Additional LiteLLM parameters
+         """
+-        self.model = model
+-        self.recursive_model = recursive_model or model
+-        self.api_base = api_base
+-        self.api_key = api_key
+-        self.max_depth = max_depth
+-        self.max_iterations = max_iterations
++        # Patch for recursive-llm-ts bug where config is passed as 2nd positional arg
++        if isinstance(recursive_model, dict):
++            config = recursive_model
++            # Reset recursive_model default
++            self.recursive_model = config.get('recursive_model', model)
++            self.api_base = config.get('api_base', api_base)
++            self.api_key = config.get('api_key', api_key)
++            self.max_depth = int(config.get('max_depth', max_depth))
++            self.max_iterations = int(config.get('max_iterations', max_iterations))
++            
++            # Extract other llm kwargs
++            excluded = {'recursive_model', 'api_base', 'api_key', 'max_depth', 'max_iterations'}
++            self.llm_kwargs = {k: v for k, v in config.items() if k not in excluded}
++            # Merge with any actual kwargs passed
++            self.llm_kwargs.update(llm_kwargs)
++        else:
++            self.recursive_model = recursive_model or model
++            self.api_base = api_base
++            self.api_key = api_key
++            self.max_depth = max_depth
++            self.max_iterations = max_iterations
++            self.llm_kwargs = llm_kwargs
++
+         self._current_depth = _current_depth
+-        self.llm_kwargs = llm_kwargs
++        self.model = model
+ 
+         self.repl = REPLExecutor()

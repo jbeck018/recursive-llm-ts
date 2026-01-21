@@ -29,12 +29,24 @@ The patch detects if the second argument is a dict and extracts the config value
 - `max_iterations`
 - Any other LiteLLM parameters (temperature, timeout, etc.)
 
+### Automatic Patch Application
+The patch is **automatically applied** during `npm install` via the `postinstall` script.
+
+**How it works:**
+1. `npm install` runs `postinstall` hook
+2. Script calls `scripts/apply-patches.js`
+3. Patch is applied from `patches/core.py.patch`
+4. If already applied, script skips (idempotent)
+5. Falls back to manual patching if `patch` command fails
+
 ### Maintaining the patch
-The submodule commit is tracked in the parent repository. When updating the submodule:
-1. Pull latest changes from upstream
-2. Re-apply this patch if it conflicts
-3. Test with custom providers to ensure it still works
-4. Update the submodule reference in the parent repo
+When updating the upstream submodule:
+1. Pull latest changes: `cd recursive-llm && git pull`
+2. Test if patch still applies: `node scripts/apply-patches.js`
+3. If conflicts occur, update `patches/core.py.patch` manually
+4. Test with custom providers
+5. Commit updated submodule reference and patch file
+6. Publish new package version
 
 ### Testing custom providers
 ```bash
