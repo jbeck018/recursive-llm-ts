@@ -1,6 +1,6 @@
 {
   "name": "recursive-llm-ts",
-  "version": "2.0.9",
+  "version": "2.0.10",
   "description": "TypeScript bridge for recursive-llm: Recursive Language Models for unbounded context processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
