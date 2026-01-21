@@ -28,27 +28,35 @@ export class PythoniaBridge implements PythonBridge {
     const pathList = await sys.path;
     await pathList.insert(0, path.join(pythonPackagePath, 'src'));
     
-    // Try to import rlm, install deps if needed
+    // Try to import rlm, install deps if import fails
     try {
-      // First check if litellm is available
-      try {
-        await this.python('litellm');
-      } catch {
-        // litellm not found, install dependencies
-        console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
-        const { execSync } = await import('child_process');
-        const pipCmd = `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
-        execSync(pipCmd, { stdio: 'inherit' });
-        console.log('[recursive-llm-ts] ✓ Python dependencies installed');
-      }
-      
       this.rlmModule = await this.python('rlm');
     } catch (error: any) {
-      throw new Error(
-        'Failed to import rlm module. Python dependencies may not be installed.\n' +
-        `Run: pip install -e ${pythonPackagePath}\n` +
-        `Original error: ${error.message || error}`
-      );
+      // If import fails, try installing dependencies
+      if (error.message?.includes('No module named')) {
+        console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
+        try {
+          const { execSync } = await import('child_process');
+          const pipCmd = `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
+          execSync(pipCmd, { stdio: 'inherit' });
+          console.log('[recursive-llm-ts] ✓ Python dependencies installed');
+          
+          // Try import again
+          this.rlmModule = await this.python('rlm');
+        } catch (installError: any) {
+          throw new Error(
+            'Failed to import rlm module after installing dependencies.\n' +
+            `Manual installation: pip install -e ${pythonPackagePath}\n` +
+            `Error: ${installError.message || installError}`
+          );
+        }
+      } else {
+        throw new Error(
+          'Failed to import rlm module.\n' +
+          `Run: pip install -e ${pythonPackagePath}\n` +
+          `Original error: ${error.message || error}`
+        );
+      }
     }
   }
 
