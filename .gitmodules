@@ -1,3 +1,0 @@
-[submodule "recursive-llm"]
-	path = recursive-llm
-	url = https://github.com/ysz/recursive-llm
