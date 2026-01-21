@@ -8,9 +8,7 @@
     "dist",
     "recursive-llm/src",
     "recursive-llm/pyproject.toml",
-    "scripts/install-python-deps.js",
-    "scripts/apply-patches.js",
-    "patches/core.py.patch"
+    "scripts/install-python-deps.js"
   ],
   "scripts": {
     "build": "tsc",

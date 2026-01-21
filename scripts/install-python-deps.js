@@ -12,15 +12,8 @@ if (!fs.existsSync(pyprojectPath)) {
   process.exit(1);
 }
 
-// Apply patches first
-console.log('Applying patches to Python package...');
-try {
-  execSync('node "' + path.join(__dirname, 'apply-patches.js') + '"', { stdio: 'inherit' });
-} catch (error) {
-  console.error('Warning: Failed to apply patches. Continuing with installation...');
-}
-
 console.log('Installing Python dependencies for recursive-llm...');
+console.log('Note: Python source is vendored with patches pre-applied.');
 
 try {
   // Install the Python package in editable mode
