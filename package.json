@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/recursive-llm-ts.git"
+    "url": "https://github.com/jbeck018/recursive-llm-ts.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/recursive-llm-ts/issues"
+    "url": "https://github.com/jbeck018/recursive-llm-ts/issues"
   },
-  "homepage": "https://github.com/yourusername/recursive-llm-ts#readme",
+  "homepage": "https://github.com/jbeck018/recursive-llm-ts#readme",
   "dependencies": {
     "pythonia": "^1.2.6"
   },
