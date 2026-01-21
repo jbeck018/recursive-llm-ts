@@ -37,15 +37,8 @@
   },
   "homepage": "https://github.com/jbeck018/recursive-llm-ts#readme",
   "dependencies": {
+    "bunpy": "^0.1.0",
     "pythonia": "^1.2.6"
-  },
-  "peerDependencies": {
-    "bunpy": "^0.1.0"
-  },
-  "peerDependenciesMeta": {
-    "bunpy": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

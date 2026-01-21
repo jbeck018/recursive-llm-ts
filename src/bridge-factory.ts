@@ -43,10 +43,23 @@ export async function createBridge(bridgeType: BridgeType = 'auto'): Promise<Pyt
   }
   
   if (selectedBridge === 'bunpy') {
-    const { BunpyBridge } = await import('./bunpy-bridge');
-    return new BunpyBridge();
-  } else {
+    try {
+      const { BunpyBridge } = await import('./bunpy-bridge');
+      return new BunpyBridge();
+    } catch (error: any) {
+      if (bridgeType === 'auto' && error.message?.includes('bunpy is not installed')) {
+        console.warn('[recursive-llm-ts] bunpy not found, falling back to pythonia');
+        selectedBridge = 'pythonia';
+      } else {
+        throw error;
+      }
+    }
+  }
+  
+  if (selectedBridge === 'pythonia') {
     const { PythoniaBridge } = await import('./rlm-bridge');
     return new PythoniaBridge();
   }
+  
+  throw new Error('Failed to initialize bridge');
 }
