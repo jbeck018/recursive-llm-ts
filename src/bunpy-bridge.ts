@@ -22,7 +22,23 @@ export class BunpyBridge implements PythonBridge {
 
     // Import sys module to add path
     const sys = this.python.import('sys');
-    const pythonExecutable = String(sys.executable || 'python');
+    const pythonExecutable = (() => {
+      try {
+        const sysExecutable = (sys as any).executable;
+        if (sysExecutable && typeof sysExecutable.valueOf === 'function') {
+          const value = sysExecutable.valueOf();
+          if (typeof value === 'string' && value.trim()) {
+            return value;
+          }
+        }
+        if (typeof sysExecutable === 'string' && sysExecutable.trim()) {
+          return sysExecutable;
+        }
+      } catch {
+        // Fall back if bunpy can't coerce sys.executable
+      }
+      return 'python';
+    })();
     const pythonCmd = pythonExecutable.includes(' ') ? `"${pythonExecutable}"` : pythonExecutable;
     const pythonPackagePath = path.join(__dirname, '..', 'recursive-llm');
     const pythonSrcPath = path.join(pythonPackagePath, 'src');
