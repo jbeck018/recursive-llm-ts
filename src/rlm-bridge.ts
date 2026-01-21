@@ -21,16 +21,35 @@ export class PythoniaBridge implements PythonBridge {
       }
     }
 
-    // Get path to recursive-llm Python module
-    const rlmPath = path.join(__dirname, '..', 'recursive-llm', 'src', 'rlm');
+    const pythonPackagePath = path.join(__dirname, '..', 'recursive-llm');
     
     // Import sys module to add path
     const sys = await this.python('sys');
     const pathList = await sys.path;
-    await pathList.insert(0, path.join(__dirname, '..', 'recursive-llm', 'src'));
+    await pathList.insert(0, path.join(pythonPackagePath, 'src'));
     
-    // Import the rlm module
-    this.rlmModule = await this.python('rlm');
+    // Try to import rlm, install deps if needed
+    try {
+      // First check if litellm is available
+      try {
+        await this.python('litellm');
+      } catch {
+        // litellm not found, install dependencies
+        console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
+        const { execSync } = await import('child_process');
+        const pipCmd = `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
+        execSync(pipCmd, { stdio: 'inherit' });
+        console.log('[recursive-llm-ts] ✓ Python dependencies installed');
+      }
+      
+      this.rlmModule = await this.python('rlm');
+    } catch (error: any) {
+      throw new Error(
+        'Failed to import rlm module. Python dependencies may not be installed.\n' +
+        `Run: pip install -e ${pythonPackagePath}\n` +
+        `Original error: ${error.message || error}`
+      );
+    }
   }
 
   public async completion(

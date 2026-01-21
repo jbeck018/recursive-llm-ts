@@ -26,8 +26,20 @@ export class BunpyBridge implements PythonBridge {
     const pythonSrcPath = path.join(pythonPackagePath, 'src');
     sys.path.insert(0, pythonSrcPath);
 
-    // Import the rlm module
+    // Try to import rlm, install deps if needed
     try {
+      // First check if litellm is available
+      try {
+        this.python.import('litellm');
+      } catch {
+        // litellm not found, install dependencies
+        console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
+        const { execSync } = await import('child_process');
+        const pipCmd = `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
+        execSync(pipCmd, { stdio: 'inherit' });
+        console.log('[recursive-llm-ts] ✓ Python dependencies installed');
+      }
+      
       this.rlmModule = this.python.import('rlm');
     } catch (error: any) {
       throw new Error(
