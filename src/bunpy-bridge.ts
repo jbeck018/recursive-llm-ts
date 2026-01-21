@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import { PythonBridge, RLMConfig, RLMResult, RLMStats } from './bridge-interface';
 
 export class BunpyBridge implements PythonBridge {
@@ -42,7 +43,25 @@ export class BunpyBridge implements PythonBridge {
     const pythonCmd = pythonExecutable.includes(' ') ? `"${pythonExecutable}"` : pythonExecutable;
     const pythonPackagePath = path.join(__dirname, '..', 'recursive-llm');
     const pythonSrcPath = path.join(pythonPackagePath, 'src');
+    const pythonDepsPath = path.join(pythonPackagePath, '.pydeps');
     const pipCmd = `${pythonCmd} -m pip install -e "${pythonPackagePath}"`;
+    const pyprojectPath = path.join(pythonPackagePath, 'pyproject.toml');
+    const dependencySpecifiers = (() => {
+      try {
+        const pyproject = fs.readFileSync(pyprojectPath, 'utf8');
+        const depsBlock = pyproject.match(/dependencies\s*=\s*\[[\s\S]*?\]/);
+        if (!depsBlock) return [];
+        return Array.from(depsBlock[0].matchAll(/"([^"]+)"/g), (match) => match[1]);
+      } catch {
+        return [];
+      }
+    })();
+    const depsInstallCmd = dependencySpecifiers.length > 0
+      ? `${pythonCmd} -m pip install --upgrade --target "${pythonDepsPath}" ${dependencySpecifiers.map((dep) => `"${dep}"`).join(' ')}`
+      : '';
+    const installCmd = depsInstallCmd || pipCmd;
+    fs.mkdirSync(pythonDepsPath, { recursive: true });
+    sys.path.insert(0, pythonDepsPath);
     sys.path.insert(0, pythonSrcPath);
 
     // Try to import rlm, install deps if import fails
@@ -51,25 +70,25 @@ export class BunpyBridge implements PythonBridge {
     } catch (error: any) {
       // If import fails, try installing dependencies
       if (error.message?.includes('No module named')) {
-        console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
+        console.log('[recursive-llm-ts] Installing Python dependencies locally (first time only)...');
         try {
           const { execSync } = await import('child_process');
-          execSync(pipCmd, { stdio: 'inherit' });
+          execSync(installCmd, { stdio: 'inherit' });
           console.log('[recursive-llm-ts] ✓ Python dependencies installed');
-          
+
           // Try import again
           this.rlmModule = this.python.import('rlm');
         } catch (installError: any) {
           throw new Error(
             'Failed to import rlm module after installing dependencies.\n' +
-            `Manual installation: ${pipCmd}\n` +
+            `Manual installation: ${installCmd}\n` +
             `Error: ${installError.message || installError}`
           );
         }
       } else {
         throw new Error(
           'Failed to import rlm module.\n' +
-          `Run: ${pipCmd}\n` +
+          `Run: ${installCmd}\n` +
           `Original error: ${error.message || error}`
         );
       }

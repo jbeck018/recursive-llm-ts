@@ -5,6 +5,7 @@ const fs = require('fs');
 
 const pythonPackagePath = path.join(__dirname, '..', 'recursive-llm');
 const pyprojectPath = path.join(pythonPackagePath, 'pyproject.toml');
+const pythonDepsPath = path.join(pythonPackagePath, '.pydeps');
 
 // Check if pyproject.toml exists
 if (!fs.existsSync(pyprojectPath)) {
@@ -13,9 +14,26 @@ if (!fs.existsSync(pyprojectPath)) {
   process.exit(0); // Don't fail the install
 }
 
-console.log('[recursive-llm-ts] Installing Python dependencies...');
+console.log('[recursive-llm-ts] Installing Python dependencies locally...');
+
+const dependencySpecifiers = (() => {
+  try {
+    const pyproject = fs.readFileSync(pyprojectPath, 'utf8');
+    const depsBlock = pyproject.match(/dependencies\s*=\s*\[[\s\S]*?\]/);
+    if (!depsBlock) return [];
+    return Array.from(depsBlock[0].matchAll(/"([^"]+)"/g), (match) => match[1]);
+  } catch {
+    return [];
+  }
+})();
+
+const installArgs = dependencySpecifiers.length > 0
+  ? ['-m', 'pip', 'install', '--upgrade', '--target', pythonDepsPath, ...dependencySpecifiers]
+  : ['-m', 'pip', 'install', '-e', pythonPackagePath];
+const dependencyArgs = dependencySpecifiers.map((dep) => `"${dep}"`).join(' ');
 
 try {
+
   const pythonCandidates = [];
   if (process.env.PYTHON) {
     pythonCandidates.push({ command: process.env.PYTHON, args: [] });
@@ -41,9 +59,10 @@ try {
   }
 
   if (pythonCmd) {
+    fs.mkdirSync(pythonDepsPath, { recursive: true });
     execFileSync(
       pythonCmd.command,
-      [...pythonCmd.args, '-m', 'pip', 'install', '-e', pythonPackagePath],
+      [...pythonCmd.args, ...installArgs],
       { stdio: 'inherit', cwd: pythonPackagePath }
     );
   } else {
@@ -53,9 +72,12 @@ try {
     } catch {
       execSync('pip3 --version', { stdio: 'pipe' });
     }
-    const pipCommand = process.platform === 'win32'
-      ? `pip install -e "${pythonPackagePath}"`
-      : `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
+    const pipCommand = dependencySpecifiers.length > 0
+      ? `pip install --upgrade --target "${pythonDepsPath}" ${dependencySpecifiers.map((dep) => `"${dep}"`).join(' ')}`
+      : process.platform === 'win32'
+        ? `pip install -e "${pythonPackagePath}"`
+        : `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
+    fs.mkdirSync(pythonDepsPath, { recursive: true });
     execSync(pipCommand, {
       stdio: 'inherit',
       cwd: pythonPackagePath
@@ -65,7 +87,14 @@ try {
 } catch (error) {
   console.warn('[recursive-llm-ts] Warning: Failed to auto-install Python dependencies');
   console.warn('[recursive-llm-ts] This is not critical - you can install them manually:');
-  console.warn(`[recursive-llm-ts]   cd node_modules/recursive-llm-ts/recursive-llm && python -m pip install -e .`);
+  if (dependencySpecifiers.length > 0) {
+    console.warn(
+      `[recursive-llm-ts]   cd node_modules/recursive-llm-ts/recursive-llm && ` +
+      `python -m pip install --upgrade --target .pydeps ${dependencyArgs}`
+    );
+  } else {
+    console.warn(`[recursive-llm-ts]   cd node_modules/recursive-llm-ts/recursive-llm && python -m pip install -e .`);
+  }
   console.warn('[recursive-llm-ts] Or ensure Python 3.9+ and pip are in your PATH');
   // Don't fail the npm install - exit with 0
   process.exit(0);
