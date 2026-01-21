@@ -25,6 +25,9 @@ export class PythoniaBridge implements PythonBridge {
     
     // Import sys module to add path
     const sys = await this.python('sys');
+    const pythonExecutable = String((await sys.executable) || 'python');
+    const pythonCmd = pythonExecutable.includes(' ') ? `"${pythonExecutable}"` : pythonExecutable;
+    const pipCmd = `${pythonCmd} -m pip install -e "${pythonPackagePath}"`;
     const pathList = await sys.path;
     await pathList.insert(0, path.join(pythonPackagePath, 'src'));
     
@@ -37,7 +40,6 @@ export class PythoniaBridge implements PythonBridge {
         console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
         try {
           const { execSync } = await import('child_process');
-          const pipCmd = `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
           execSync(pipCmd, { stdio: 'inherit' });
           console.log('[recursive-llm-ts] ✓ Python dependencies installed');
           
@@ -46,14 +48,14 @@ export class PythoniaBridge implements PythonBridge {
         } catch (installError: any) {
           throw new Error(
             'Failed to import rlm module after installing dependencies.\n' +
-            `Manual installation: pip install -e ${pythonPackagePath}\n` +
+            `Manual installation: ${pipCmd}\n` +
             `Error: ${installError.message || installError}`
           );
         }
       } else {
         throw new Error(
           'Failed to import rlm module.\n' +
-          `Run: pip install -e ${pythonPackagePath}\n` +
+          `Run: ${pipCmd}\n` +
           `Original error: ${error.message || error}`
         );
       }

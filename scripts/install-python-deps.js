@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -16,28 +16,56 @@ if (!fs.existsSync(pyprojectPath)) {
 console.log('[recursive-llm-ts] Installing Python dependencies...');
 
 try {
-  // Check if pip is available
-  try {
-    execSync('pip --version', { stdio: 'pipe' });
-  } catch {
-    // Try pip3
-    execSync('pip3 --version', { stdio: 'pipe' });
+  const pythonCandidates = [];
+  if (process.env.PYTHON) {
+    pythonCandidates.push({ command: process.env.PYTHON, args: [] });
+  }
+  if (process.platform === 'win32') {
+    pythonCandidates.push({ command: 'py', args: ['-3'] });
+    pythonCandidates.push({ command: 'python', args: [] });
+    pythonCandidates.push({ command: 'python3', args: [] });
+  } else {
+    pythonCandidates.push({ command: 'python3', args: [] });
+    pythonCandidates.push({ command: 'python', args: [] });
   }
 
-  // Install the Python package in editable mode
-  const pipCommand = process.platform === 'win32' 
-    ? `pip install -e "${pythonPackagePath}"`
-    : `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
-  
-  execSync(pipCommand, {
-    stdio: 'inherit',
-    cwd: pythonPackagePath
-  });
+  let pythonCmd = null;
+  for (const candidate of pythonCandidates) {
+    try {
+      execFileSync(candidate.command, [...candidate.args, '--version'], { stdio: 'pipe' });
+      pythonCmd = candidate;
+      break;
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  if (pythonCmd) {
+    execFileSync(
+      pythonCmd.command,
+      [...pythonCmd.args, '-m', 'pip', 'install', '-e', pythonPackagePath],
+      { stdio: 'inherit', cwd: pythonPackagePath }
+    );
+  } else {
+    // Fall back to pip/pip3 if a Python executable wasn't found
+    try {
+      execSync('pip --version', { stdio: 'pipe' });
+    } catch {
+      execSync('pip3 --version', { stdio: 'pipe' });
+    }
+    const pipCommand = process.platform === 'win32'
+      ? `pip install -e "${pythonPackagePath}"`
+      : `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
+    execSync(pipCommand, {
+      stdio: 'inherit',
+      cwd: pythonPackagePath
+    });
+  }
   console.log('[recursive-llm-ts] ✓ Python dependencies installed successfully');
 } catch (error) {
   console.warn('[recursive-llm-ts] Warning: Failed to auto-install Python dependencies');
   console.warn('[recursive-llm-ts] This is not critical - you can install them manually:');
-  console.warn(`[recursive-llm-ts]   cd node_modules/recursive-llm-ts/recursive-llm && pip install -e .`);
+  console.warn(`[recursive-llm-ts]   cd node_modules/recursive-llm-ts/recursive-llm && python -m pip install -e .`);
   console.warn('[recursive-llm-ts] Or ensure Python 3.9+ and pip are in your PATH');
   // Don't fail the npm install - exit with 0
   process.exit(0);

@@ -22,8 +22,11 @@ export class BunpyBridge implements PythonBridge {
 
     // Import sys module to add path
     const sys = this.python.import('sys');
+    const pythonExecutable = String(sys.executable || 'python');
+    const pythonCmd = pythonExecutable.includes(' ') ? `"${pythonExecutable}"` : pythonExecutable;
     const pythonPackagePath = path.join(__dirname, '..', 'recursive-llm');
     const pythonSrcPath = path.join(pythonPackagePath, 'src');
+    const pipCmd = `${pythonCmd} -m pip install -e "${pythonPackagePath}"`;
     sys.path.insert(0, pythonSrcPath);
 
     // Try to import rlm, install deps if import fails
@@ -35,7 +38,6 @@ export class BunpyBridge implements PythonBridge {
         console.log('[recursive-llm-ts] Installing Python dependencies (first time only)...');
         try {
           const { execSync } = await import('child_process');
-          const pipCmd = `pip install -e "${pythonPackagePath}" || pip3 install -e "${pythonPackagePath}"`;
           execSync(pipCmd, { stdio: 'inherit' });
           console.log('[recursive-llm-ts] ✓ Python dependencies installed');
           
@@ -44,14 +46,14 @@ export class BunpyBridge implements PythonBridge {
         } catch (installError: any) {
           throw new Error(
             'Failed to import rlm module after installing dependencies.\n' +
-            `Manual installation: pip install -e ${pythonPackagePath}\n` +
+            `Manual installation: ${pipCmd}\n` +
             `Error: ${installError.message || installError}`
           );
         }
       } else {
         throw new Error(
           'Failed to import rlm module.\n' +
-          `Run: pip install -e ${pythonPackagePath}\n` +
+          `Run: ${pipCmd}\n` +
           `Original error: ${error.message || error}`
         );
       }
