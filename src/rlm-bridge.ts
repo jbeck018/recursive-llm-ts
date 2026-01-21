@@ -1,32 +1,8 @@
 import { python } from 'pythonia';
 import * as path from 'path';
+import { PythonBridge, RLMConfig, RLMResult, RLMStats } from './bridge-interface';
 
-export interface RLMStats {
-  llm_calls: number;
-  iterations: number;
-  depth: number;
-}
-
-export interface RLMResult {
-  result: string;
-  stats: RLMStats;
-}
-
-export interface RLMError {
-  error: string;
-}
-
-export interface RLMConfig {
-  recursive_model?: string;
-  api_base?: string;
-  api_key?: string;
-  max_depth?: number;
-  max_iterations?: number;
-  pythonia_timeout?: number;  // Timeout in milliseconds for pythonia calls (default: 100000ms)
-  [key: string]: any;
-}
-
-export class RLMBridge {
+export class PythoniaBridge implements PythonBridge {
   private rlmModule: any = null;
 
   private async ensureRLMModule(): Promise<void> {

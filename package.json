@@ -1,6 +1,6 @@
 {
   "name": "recursive-llm-ts",
-  "version": "1.0.7",
+  "version": "2.0.0",
   "description": "TypeScript bridge for recursive-llm: Recursive Language Models for unbounded context processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,6 +40,14 @@
   "homepage": "https://github.com/yourusername/recursive-llm-ts#readme",
   "dependencies": {
     "pythonia": "^1.2.6"
+  },
+  "peerDependencies": {
+    "bunpy": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "bunpy": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

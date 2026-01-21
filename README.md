@@ -10,18 +10,31 @@ npm install recursive-llm-ts
 
 ### Prerequisites
 
-- **Node.js** (not Bun) - This package uses `pythonia` which requires Node.js internals
+- **Runtime:** Node.js **or** Bun (both supported with automatic detection)
 - **Python 3.9+** - Required for the underlying recursive-llm Python package
 - **pip** - Python package manager
 
 **Python dependencies are automatically installed** via the `postinstall` script when you `npm install`. The script will run `pip install -e` on the bundled Python package, installing `litellm`, `RestrictedPython`, and other dependencies.
 
+#### For Bun Users
+If using Bun, also install `bunpy`:
+```bash
+bun add bunpy
+```
+
+The package will automatically detect your runtime and use the appropriate Python bridge:
+- **Node.js** → uses `pythonia` (included)
+- **Bun** → uses `bunpy` (peer dependency)
+
 ## Usage
+
+### Automatic Runtime Detection (Recommended)
 
 ```typescript
 import { RLM } from 'recursive-llm-ts';
 
 // Initialize RLM with a model
+// Automatically detects Node.js or Bun and uses appropriate bridge
 const rlm = new RLM('gpt-4o-mini', {
   max_iterations: 15,
   api_key: process.env.OPENAI_API_KEY
@@ -35,6 +48,26 @@ const result = await rlm.completion(
 
 console.log(result.result);
 console.log('Stats:', result.stats);
+```
+
+### Explicit Bridge Selection
+
+If you need to explicitly specify which bridge to use:
+
+```typescript
+import { RLM } from 'recursive-llm-ts';
+
+// Force use of bunpy (for Bun)
+const rlm = new RLM('gpt-4o-mini', {
+  max_iterations: 15,
+  api_key: process.env.OPENAI_API_KEY
+}, 'bunpy');
+
+// Or force use of pythonia (for Node.js)
+const rlm2 = new RLM('gpt-4o-mini', {}, 'pythonia');
+
+// Auto-detection (default)
+const rlm3 = new RLM('gpt-4o-mini', {}, 'auto');
 ```
 
 
