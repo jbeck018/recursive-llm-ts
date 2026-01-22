@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-01-22T09:33:33.222389",
+  "model": "gpt-4o-mini",
+  "tests": [
+    {
+      "name": "multi_hop_facts",
+      "category": "multi_hop",
+      "query": "Who is Alice's manager's manager?",
+      "context_length": 219,
+      "python": {
+        "result": "Alice's manager's manager was not found in the context.",
+        "stats": {},
+        "duration": 5.442528009414673,
+        "valid": false,
+        "validation_message": "Expected 'Carol', got 'Alice's manager's manager was not found in the context.'"
+      },
+      "go": {
+        "error": "Command '['/Users/jacob_1/totango/recursive-llm-ts/bin/rlm-go']' timed out after 120 seconds"
+      }
+    },
+    {
+      "name": "multi_hop_calculations",
+      "category": "multi_hop",
+      "query": "What is the total price for all items Alice bought?",
+      "context_length": 204,
+      "python": {
+        "result": "0",
+        "stats": {},
+        "duration": 2.6282758712768555,
+        "valid": false,
+        "validation_message": "Expected '50', got '0'"
+      },
+      "go": {
+        "error": "Command '['/Users/jacob_1/totango/recursive-llm-ts/bin/rlm-go']' timed out after 120 seconds"
+      }
+    }
+  ]
+}

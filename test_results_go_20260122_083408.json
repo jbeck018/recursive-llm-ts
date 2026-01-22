@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-01-22T08:34:00.655223",
+  "model": "gpt-4o-mini",
+  "tests": [
+    {
+      "name": "grep_email_addresses",
+      "category": "grepping",
+      "query": "Find all email addresses in the text.",
+      "context_length": 197,
+      "go": {
+        "result": "answer",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 3.2862730026245117,
+        "valid": false,
+        "validation_message": "Should find all 3 emails"
+      }
+    },
+    {
+      "name": "grep_question_lines",
+      "category": "grepping",
+      "query": "How many lines contain questions (end with '?')?",
+      "context_length": 212,
+      "go": {
+        "result": "3",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.1875720024108887,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    },
+    {
+      "name": "grep_ids_pattern",
+      "category": "grepping",
+      "query": "Find all ID numbers (format: ID-####).",
+      "context_length": 158,
+      "go": {
+        "result": "ID-1234,ID-5678,ID-9012",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.1722519397735596,
+        "valid": true,
+        "validation_message": "Should find all 3 IDs"
+      }
+    }
+  ]
+}

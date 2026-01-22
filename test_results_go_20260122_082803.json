@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-01-22T08:28:03.786580",
+  "model": "gpt-4o-mini",
+  "tests": [
+    {
+      "name": "peek_structured_list",
+      "category": "peeking",
+      "query": "What is the structure of this data? List the first 3 items.",
+      "context_length": 1883,
+      "go": {
+        "error": "Go binary not found at /Users/jacob_1/totango/recursive-llm-ts/bin/rlm-go"
+      }
+    },
+    {
+      "name": "peek_json_structure",
+      "category": "peeking",
+      "query": "What fields are in each record? Give me the keys.",
+      "context_length": 3023,
+      "go": {
+        "error": "Go binary not found at /Users/jacob_1/totango/recursive-llm-ts/bin/rlm-go"
+      }
+    }
+  ]
+}

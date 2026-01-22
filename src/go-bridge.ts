@@ -3,7 +3,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import { PythonBridge, RLMConfig, RLMResult } from './bridge-interface';
 
-const DEFAULT_BINARY_NAME = process.platform === 'win32' ? 'rlm-go.exe' : 'rlm-go';
+const DEFAULT_BINARY_NAME = process.platform === 'win32' ? 'rlm.exe' : 'rlm';
 
 function resolveBinaryPath(rlmConfig: RLMConfig): string {
   const configuredPath = rlmConfig.go_binary_path || process.env.RLM_GO_BINARY;
@@ -11,7 +11,19 @@ function resolveBinaryPath(rlmConfig: RLMConfig): string {
     return configuredPath;
   }
 
-  return path.join(__dirname, '..', 'bin', DEFAULT_BINARY_NAME);
+  // Try multiple locations
+  const possiblePaths = [
+    path.join(__dirname, '..', 'go', DEFAULT_BINARY_NAME),  // Development
+    path.join(__dirname, '..', 'bin', DEFAULT_BINARY_NAME),  // NPM package
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+
+  return possiblePaths[0]; // Return first path, error will be caught later
 }
 
 function assertBinaryExists(binaryPath: string): void {

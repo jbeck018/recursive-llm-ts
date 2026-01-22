@@ -1,22 +1,22 @@
 package rlm
 
 import (
-	"errors"
 	"fmt"
 )
 
 type RLM struct {
-	model          string
-	recursiveModel string
-	apiBase        string
-	apiKey         string
-	maxDepth       int
-	maxIterations  int
-	timeoutSeconds int
-	extraParams    map[string]interface{}
-	currentDepth   int
-	repl           *REPLExecutor
-	stats          RLMStats
+	model            string
+	recursiveModel   string
+	apiBase          string
+	apiKey           string
+	maxDepth         int
+	maxIterations    int
+	timeoutSeconds   int
+	useMetacognitive bool
+	extraParams      map[string]interface{}
+	currentDepth     int
+	repl             *REPLExecutor
+	stats            RLMStats
 }
 
 func New(model string, config Config) *RLM {
@@ -26,17 +26,18 @@ func New(model string, config Config) *RLM {
 	}
 
 	return &RLM{
-		model:          model,
-		recursiveModel: recursiveModel,
-		apiBase:        config.APIBase,
-		apiKey:         config.APIKey,
-		maxDepth:       config.MaxDepth,
-		maxIterations:  config.MaxIterations,
-		timeoutSeconds: config.TimeoutSeconds,
-		extraParams:    config.ExtraParams,
-		currentDepth:   0,
-		repl:           NewREPLExecutor(),
-		stats:          RLMStats{},
+		model:            model,
+		recursiveModel:   recursiveModel,
+		apiBase:          config.APIBase,
+		apiKey:           config.APIKey,
+		maxDepth:         config.MaxDepth,
+		maxIterations:    config.MaxIterations,
+		timeoutSeconds:   config.TimeoutSeconds,
+		useMetacognitive: config.UseMetacognitive,
+		extraParams:      config.ExtraParams,
+		currentDepth:     0,
+		repl:             NewREPLExecutor(),
+		stats:            RLMStats{},
 	}
 }
 
@@ -47,12 +48,12 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 	}
 
 	if r.currentDepth >= r.maxDepth {
-		return "", r.stats, fmt.Errorf("max recursion depth (%d) exceeded", r.maxDepth)
+		return "", r.stats, NewMaxDepthError(r.maxDepth)
 	}
 
 	r.stats.Depth = r.currentDepth
 	replEnv := r.buildREPLEnv(query, context)
-	systemPrompt := BuildSystemPrompt(len(context), r.currentDepth, query)
+	systemPrompt := BuildSystemPrompt(len(context), r.currentDepth, query, r.useMetacognitive)
 	messages := []Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: query},
@@ -82,7 +83,7 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 		messages = append(messages, Message{Role: "user", Content: execResult})
 	}
 
-	return "", r.stats, errors.New("max iterations exceeded without FINAL()")
+	return "", r.stats, NewMaxIterationsError(r.maxIterations)
 }
 
 func (r *RLM) callLLM(messages []Message) (string, error) {
@@ -117,13 +118,14 @@ func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} 
 		}
 
 		subConfig := Config{
-			RecursiveModel: r.recursiveModel,
-			APIBase:        r.apiBase,
-			APIKey:         r.apiKey,
-			MaxDepth:       r.maxDepth,
-			MaxIterations:  r.maxIterations,
-			TimeoutSeconds: r.timeoutSeconds,
-			ExtraParams:    r.extraParams,
+			RecursiveModel:   r.recursiveModel,
+			APIBase:          r.apiBase,
+			APIKey:           r.apiKey,
+			MaxDepth:         r.maxDepth,
+			MaxIterations:    r.maxIterations,
+			TimeoutSeconds:   r.timeoutSeconds,
+			UseMetacognitive: r.useMetacognitive,
+			ExtraParams:      r.extraParams,
 		}
 
 		subRLM := New(r.recursiveModel, subConfig)

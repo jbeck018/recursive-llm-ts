@@ -12,11 +12,13 @@ export class PythoniaBridge implements PythonBridge {
     // Lazy load pythonia to avoid errors in Bun environments
     if (!this.python) {
       try {
+        // @ts-ignore - Optional dependency, may not be installed
         const pythonia = await import('pythonia');
         this.python = pythonia.python;
       } catch (error) {
         throw new Error(
-          'pythonia is not installed. Install it with: npm install pythonia\n' +
+          'pythonia is not available (Python dependencies removed in v3.0). ' +
+          'Please use the Go bridge (default) or install pythonia separately: npm install pythonia\n' +
           'Note: pythonia only works with Node.js runtime, not Bun'
         );
       }

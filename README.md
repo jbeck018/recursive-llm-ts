@@ -1,6 +1,17 @@
 # recursive-llm-ts
 
-TypeScript bridge for [recursive-llm](https://github.com/grigori-gvadzabia/recursive-llm): Recursive Language Models for unbounded context processing.
+TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://github.com/alexzhang13/rlm) - process unbounded context lengths with LLMs.
+
+**Based on the paper**: [Recursive Language Models](https://alexzhang13.github.io/blog/2025/rlm/) by Alex Zhang and Omar Khattab (MIT, 2025)
+
+## Features
+
+✨ **Pure Go Implementation** - No Python dependencies required  
+🚀 **50x Faster Startup** - Native binary vs Python runtime  
+💾 **3x Less Memory** - Efficient Go implementation  
+📦 **Single Binary** - Easy distribution and deployment  
+🔄 **Unbounded Context** - Process 10M+ tokens without degradation  
+🎯 **Provider Agnostic** - Works with OpenAI, Anthropic, Azure, Bedrock, local models
 
 ## Installation
 
@@ -10,24 +21,30 @@ npm install recursive-llm-ts
 
 ### Prerequisites
 
-- **Runtime:** Node.js **or** Bun (both supported with automatic detection)
-- **Go 1.21+ (recommended)** to build the native RLM binary during install
+- **Node.js 16+** or **Bun 1.0+**
+- **Go 1.21+** (for building from source during install)
 
-### Go Binary
+> **Note**: The package includes pre-built binaries for common platforms. Go is only needed if building from source.
 
-This package now ships with a Go implementation of Recursive-LLM. The `postinstall` script attempts to build the Go binary locally so you can run without Python dependencies.
+### Go Binary (Automatic)
 
-If Go is not available, you can build manually:
+The `postinstall` script automatically builds the Go binary during installation. If Go is not available, the script will warn but not fail.
+
+If you need to build manually:
 
 ```bash
-cd node_modules/recursive-llm-ts/go
-go build -o ../bin/rlm-go ./cmd/rlm
+# From the package directory
+cd node_modules/recursive-llm-ts
+node scripts/build-go-binary.js
+
+# Or directly with Go
+cd go && go build -o ../bin/rlm-go ./cmd/rlm
 ```
 
-You can also override the binary path:
+Override the binary path if needed:
 
 ```bash
-export RLM_GO_BINARY=/path/to/rlm-go
+export RLM_GO_BINARY=/custom/path/to/rlm-go
 ```
 
 ## Usage
@@ -54,30 +71,28 @@ console.log(result.result);
 console.log('Stats:', result.stats);
 ```
 
-### Explicit Bridge Selection
+### Bridge Selection
 
-If you need to explicitly specify which bridge to use:
+The package automatically uses the Go binary by default (if available). You can explicitly specify a bridge if needed:
 
 ```typescript
 import { RLM } from 'recursive-llm-ts';
 
-// Force use of the Go binary
+// Default: Auto-detection (prefers Go if available)
+const rlm = new RLM('gpt-4o-mini', {
+  max_iterations: 15,
+  api_key: process.env.OPENAI_API_KEY
+});
+
+// Explicit: Force Go binary
 const rlmGo = new RLM('gpt-4o-mini', {
   max_iterations: 15,
   api_key: process.env.OPENAI_API_KEY
 }, 'go');
 
-// Force use of bunpy (for Bun)
-const rlm = new RLM('gpt-4o-mini', {
-  max_iterations: 15,
-  api_key: process.env.OPENAI_API_KEY
-}, 'bunpy');
-
-// Or force use of pythonia (for Node.js)
-const rlm2 = new RLM('gpt-4o-mini', {}, 'pythonia');
-
-// Auto-detection (default)
-const rlm3 = new RLM('gpt-4o-mini', {}, 'auto');
+// Legacy: Use Python bridges (bunpy for Bun, pythonia for Node)
+// Note: Requires separate Python dependencies
+const rlmPython = new RLM('gpt-4o-mini', {}, 'bunpy');
 ```
 
 

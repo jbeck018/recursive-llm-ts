@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-01-22T09:03:55.359097",
+  "model": "gpt-4o-mini",
+  "tests": [
+    {
+      "name": "edge_empty_result",
+      "category": "edge_cases",
+      "query": "Find all phone numbers.",
+      "context_length": 76,
+      "go": {
+        "result": "[]",
+        "stats": {
+          "llm_calls": 3,
+          "iterations": 3,
+          "depth": 0
+        },
+        "duration": 4.032035827636719,
+        "valid": false,
+        "validation_message": "Should indicate no phone numbers found"
+      }
+    },
+    {
+      "name": "edge_large_numbers",
+      "category": "edge_cases",
+      "query": "What is the sum of all numbers?",
+      "context_length": 43,
+      "go": {
+        "result": "24444442",
+        "stats": {
+          "llm_calls": 3,
+          "iterations": 3,
+          "depth": 0
+        },
+        "duration": 3.0941011905670166,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    },
+    {
+      "name": "edge_nested_structure",
+      "category": "edge_cases",
+      "query": "How many total people are mentioned across all departments?",
+      "context_length": 274,
+      "go": {
+        "result": "0",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.3360378742218018,
+        "valid": false,
+        "validation_message": "Expected '11', got '0'"
+      }
+    }
+  ]
+}

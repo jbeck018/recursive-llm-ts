@@ -12,13 +12,15 @@ type RLMStats struct {
 }
 
 type Config struct {
-	RecursiveModel string
-	APIBase        string
-	APIKey         string
-	MaxDepth       int
-	MaxIterations  int
-	TimeoutSeconds int
-	ExtraParams    map[string]interface{}
+	RecursiveModel    string
+	APIBase           string
+	APIKey            string
+	MaxDepth          int
+	MaxIterations     int
+	TimeoutSeconds    int
+	Parallel          bool // Enable parallel recursive calls with goroutines
+	UseMetacognitive  bool // Enable step-by-step reasoning guidance in prompts
+	ExtraParams       map[string]interface{}
 }
 
 func ConfigFromMap(config map[string]interface{}) Config {
@@ -52,7 +54,15 @@ func ConfigFromMap(config map[string]interface{}) Config {
 			if v, ok := toInt(value); ok {
 				parsed.TimeoutSeconds = v
 			}
-		case "pythonia_timeout", "go_binary_path":
+		case "parallel":
+			if v, ok := value.(bool); ok {
+				parsed.Parallel = v
+			}
+		case "use_metacognitive", "metacognitive":
+			if v, ok := value.(bool); ok {
+				parsed.UseMetacognitive = v
+			}
+		case "pythonia_timeout", "go_binary_path", "bridge":
 			// ignore bridge-only config
 		default:
 			parsed.ExtraParams[key] = value

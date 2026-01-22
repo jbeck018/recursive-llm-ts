@@ -36,6 +36,18 @@ type chatResponse struct {
 	} `json:"error"`
 }
 
+var (
+	// defaultHTTPClient is a shared HTTP client with connection pooling
+	defaultHTTPClient = &http.Client{
+		Timeout: 60 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
+)
+
 func CallChatCompletion(request ChatRequest) (string, error) {
 	endpoint := buildEndpoint(request.APIBase)
 	payload := map[string]interface{}{
@@ -52,9 +64,14 @@ func CallChatCompletion(request ChatRequest) (string, error) {
 		return "", err
 	}
 
-	client := &http.Client{}
+	// Use shared client with connection pooling
+	client := defaultHTTPClient
 	if request.Timeout > 0 {
-		client.Timeout = time.Duration(request.Timeout) * time.Second
+		// Create custom client for non-default timeout
+		client = &http.Client{
+			Timeout:   time.Duration(request.Timeout) * time.Second,
+			Transport: defaultHTTPClient.Transport,
+		}
 	}
 
 	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
@@ -78,7 +95,7 @@ func CallChatCompletion(request ChatRequest) (string, error) {
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		return "", fmt.Errorf("LLM request failed (%d): %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+		return "", NewAPIError(resp.StatusCode, strings.TrimSpace(string(responseBody)))
 	}
 
 	var parsed chatResponse

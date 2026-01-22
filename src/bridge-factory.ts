@@ -72,18 +72,29 @@ export async function createBridge(bridgeType: BridgeType = 'auto'): Promise<Pyt
       const { BunpyBridge } = await import('./bunpy-bridge');
       return new BunpyBridge();
     } catch (error: any) {
-      if (bridgeType === 'auto' && error.message?.includes('bunpy is not installed')) {
-        console.warn('[recursive-llm-ts] bunpy not found, falling back to pythonia');
+      const errorMsg = error?.code === 'MODULE_NOT_FOUND' 
+        ? 'bunpy bridge not available (Python dependencies removed in v3.0)'
+        : error.message;
+      
+      if (bridgeType === 'auto') {
+        console.warn(`[recursive-llm-ts] ${errorMsg}, falling back to pythonia`);
         selectedBridge = 'pythonia';
       } else {
-        throw error;
+        throw new Error(`${errorMsg}. Use 'go' bridge instead (default in v3.0).`);
       }
     }
   }
   
   if (selectedBridge === 'pythonia') {
-    const { PythoniaBridge } = await import('./rlm-bridge');
-    return new PythoniaBridge();
+    try {
+      const { PythoniaBridge } = await import('./rlm-bridge');
+      return new PythoniaBridge();
+    } catch (error: any) {
+      throw new Error(
+        'pythonia bridge not available (Python dependencies removed in v3.0). ' +
+        'Use the Go bridge instead (default) or install bunpy/pythonia separately.'
+      );
+    }
   }
   
   throw new Error('Failed to initialize bridge');

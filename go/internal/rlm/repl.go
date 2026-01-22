@@ -66,11 +66,11 @@ func (r *REPLExecutor) Execute(code string, env map[string]interface{}) (string,
 	})
 
 	if _, err := vm.RunString(jsBootstrap); err != nil {
-		return "", fmt.Errorf("Execution error: %w", err)
+		return "", NewREPLError("Bootstrap execution error", jsBootstrap, err)
 	}
 
 	if _, err := vm.RunString(code); err != nil {
-		return "", fmt.Errorf("Execution error: %w", err)
+		return "", NewREPLError("Code execution error", code, err)
 	}
 
 	if output.Len() == 0 {
@@ -199,18 +199,34 @@ func getLastLine(code string) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	return strings.TrimSpace(lines[len(lines)-1])
+	lastLine := strings.TrimSpace(lines[len(lines)-1])
+	// Handle multiple statements on same line separated by semicolon
+	if strings.Contains(lastLine, ";") {
+		parts := strings.Split(lastLine, ";")
+		// Get the last non-empty part
+		for i := len(parts) - 1; i >= 0; i-- {
+			if trimmed := strings.TrimSpace(parts[i]); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return lastLine
 }
 
 func looksLikeExpression(line string) bool {
 	if line == "" {
 		return false
 	}
-	keywords := []string{"const ", "let ", "var ", "function ", "if ", "for ", "while ", "class ", "return ", "="}
+	// Check for statements that shouldn't be evaluated as expressions
+	keywords := []string{"const ", "let ", "var ", "function ", "if ", "for ", "while ", "class ", "return "}
 	for _, keyword := range keywords {
-		if strings.Contains(line, keyword) {
+		if strings.HasPrefix(strings.TrimSpace(line), keyword) {
 			return false
 		}
+	}
+	// Check for assignment (but not == or === comparison)
+	if strings.Contains(line, "=") && !strings.Contains(line, "==") && !strings.Contains(line, "===") {
+		return false
 	}
 	return true
 }

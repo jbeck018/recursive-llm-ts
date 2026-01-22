@@ -1,6 +1,6 @@
 {
   "name": "recursive-llm-ts",
-  "version": "2.0.12",
+  "version": "3.0.0",
   "description": "TypeScript bridge for recursive-llm: Recursive Language Models for unbounded context processing",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,10 +8,7 @@
     "dist",
     "bin",
     "go",
-    "recursive-llm/src",
-    "recursive-llm/pyproject.toml",
-    "scripts/build-go-binary.js",
-    "scripts/install-python-deps.js"
+    "scripts/build-go-binary.js"
   ],
   "scripts": {
     "build": "tsc",
@@ -39,10 +36,7 @@
     "url": "https://github.com/jbeck018/recursive-llm-ts/issues"
   },
   "homepage": "https://github.com/jbeck018/recursive-llm-ts#readme",
-  "dependencies": {
-    "bunpy": "^0.1.0",
-    "pythonia": "^1.2.6"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.11.19",
     "dotenv": "^16.4.5",
