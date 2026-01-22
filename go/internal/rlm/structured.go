@@ -235,27 +235,75 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 	return ""
 }
 
-// generateFieldQuery creates a focused query for a specific field
+// generateFieldQuery creates a focused query for a specific field based on its schema
 func generateFieldQuery(fieldName string, schema *JSONSchema) string {
-	fieldQueries := map[string]string{
-		"sentiment":             "Analyze the overall sentiment of this conversation. Return a JSON object with: score (integer 1-5), confidence (number 0-1), and optional reasoning (string).",
-		"sentimentValue":        "What is the overall sentiment score (1-5) of this conversation?",
-		"sentimentExplanation":  "Explain in 2-3 sentences why the conversation has this sentiment score.",
-		"phrases":               "Extract key phrases that significantly impacted the sentiment, excluding neutral (3-value) phrases. For each phrase, include the sentiment value and the phrase itself (1 sentence).",
-		"keyMoments":            "Identify key moments in the conversation such as churn mentions, personnel changes, competitive mentions, etc. For each moment, provide the phrase and categorize the type.",
+	var queryParts []string
+	
+	// Start with field name
+	queryParts = append(queryParts, fmt.Sprintf("Extract the %s from the conversation.", fieldName))
+	
+	// Add type-specific instructions
+	switch schema.Type {
+	case "object":
+		if len(schema.Required) > 0 {
+			fieldDetails := make([]string, 0, len(schema.Required))
+			for _, reqField := range schema.Required {
+				if propSchema, exists := schema.Properties[reqField]; exists {
+					fieldDetails = append(fieldDetails, fmt.Sprintf("'%s' (%s)", reqField, propSchema.Type))
+				}
+			}
+			queryParts = append(queryParts, fmt.Sprintf("Return a JSON object with these REQUIRED fields: %s.", strings.Join(fieldDetails, ", ")))
+		} else {
+			queryParts = append(queryParts, "Return a JSON object.")
+		}
+		
+	case "array":
+		if schema.Items != nil {
+			if schema.Items.Type == "object" && schema.Items.Properties != nil {
+				// Build detailed description of array item structure
+				requiredFields := make([]string, 0)
+				optionalFields := make([]string, 0)
+				
+				for propName, propSchema := range schema.Items.Properties {
+					fieldDesc := fmt.Sprintf("'%s' (%s)", propName, propSchema.Type)
+					if contains(schema.Items.Required, propName) {
+						requiredFields = append(requiredFields, fieldDesc)
+					} else {
+						optionalFields = append(optionalFields, fieldDesc)
+					}
+				}
+				
+				var itemDesc []string
+				if len(requiredFields) > 0 {
+					itemDesc = append(itemDesc, fmt.Sprintf("REQUIRED fields: %s", strings.Join(requiredFields, ", ")))
+				}
+				if len(optionalFields) > 0 {
+					itemDesc = append(itemDesc, fmt.Sprintf("Optional fields: %s", strings.Join(optionalFields, ", ")))
+				}
+				
+				queryParts = append(queryParts, fmt.Sprintf("Return a JSON array where each item is an object with %s.", strings.Join(itemDesc, ". ")))
+			} else {
+				queryParts = append(queryParts, fmt.Sprintf("Return a JSON array of %s values.", schema.Items.Type))
+			}
+		} else {
+			queryParts = append(queryParts, "Return a JSON array.")
+		}
+		
+	case "string":
+		if schema.Enum != nil && len(schema.Enum) > 0 {
+			queryParts = append(queryParts, fmt.Sprintf("Return EXACTLY one of these values: %s (use exact strings).", strings.Join(schema.Enum, ", ")))
+		} else {
+			queryParts = append(queryParts, "Return a string value.")
+		}
+		
+	case "number":
+		queryParts = append(queryParts, "Return a numeric value.")
+		
+	case "boolean":
+		queryParts = append(queryParts, "Return a boolean value (true or false).")
 	}
-
-	if query, exists := fieldQueries[fieldName]; exists {
-		return query
-	}
-
-	// For object types, provide more detailed instructions about required fields
-	if schema.Type == "object" && len(schema.Required) > 0 {
-		return fmt.Sprintf("Extract the %s from the conversation. Return a JSON object with these required fields: %s.", 
-			fieldName, strings.Join(schema.Required, ", "))
-	}
-
-	return fmt.Sprintf("Extract the %s from the conversation.", fieldName)
+	
+	return strings.Join(queryParts, " ")
 }
 
 // parseAndValidateJSON extracts JSON from response and validates against schema  
