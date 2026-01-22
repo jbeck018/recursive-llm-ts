@@ -31,7 +31,8 @@ if (!goAvailable()) {
 
 try {
   fs.mkdirSync(binDir, { recursive: true });
-  execFileSync('go', ['build', '-o', binaryPath, './cmd/rlm'], { stdio: 'inherit', cwd: goRoot });
+  // Build with optimization: -s removes symbol table, -w removes DWARF debug info
+  execFileSync('go', ['build', '-ldflags=-s -w', '-o', binaryPath, './cmd/rlm'], { stdio: 'inherit', cwd: goRoot });
   console.log(`[recursive-llm-ts] ✓ Go binary built at ${binaryPath}`);
 } catch (error) {
   console.warn('[recursive-llm-ts] Warning: Failed to build Go binary');

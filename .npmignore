@@ -1,4 +1,5 @@
 test/
+tests/
 src/
 .env
 .env.example
@@ -6,10 +7,21 @@ tsconfig.json
 .DS_Store
 node_modules/
 *.log
-recursive-llm/.git/
-recursive-llm/.venv/
-recursive-llm/tests/
-recursive-llm/examples/
-recursive-llm/.gitignore
-recursive-llm/README.md
-recursive-llm/LICENSE
+recursive-llm/
+python_backup_*/
+docs/
+
+# Go test and development files
+go/**/*_test.go
+go/**/*.sh
+go/rlm
+go/README.md
+go/integration_test.sh
+go/test_mock.sh
+go/test_rlm.sh
+go/test_simple.sh
+
+# Test results and artifacts
+test_results_*.json
+test_output_*.txt
+cleanup_python.sh
