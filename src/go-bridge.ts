@@ -3,7 +3,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import { PythonBridge, RLMConfig, RLMResult } from './bridge-interface';
 
-const DEFAULT_BINARY_NAME = process.platform === 'win32' ? 'rlm.exe' : 'rlm';
+const DEFAULT_BINARY_NAME = process.platform === 'win32' ? 'rlm-go.exe' : 'rlm-go';
 
 function resolveBinaryPath(rlmConfig: RLMConfig): string {
   const configuredPath = rlmConfig.go_binary_path || process.env.RLM_GO_BINARY;
@@ -13,8 +13,8 @@ function resolveBinaryPath(rlmConfig: RLMConfig): string {
 
   // Try multiple locations
   const possiblePaths = [
-    path.join(__dirname, '..', 'go', DEFAULT_BINARY_NAME),  // Development
-    path.join(__dirname, '..', 'bin', DEFAULT_BINARY_NAME),  // NPM package
+    path.join(__dirname, '..', 'bin', DEFAULT_BINARY_NAME),  // NPM package (primary)
+    path.join(__dirname, '..', 'go', DEFAULT_BINARY_NAME),  // Development fallback
   ];
 
   for (const p of possiblePaths) {
