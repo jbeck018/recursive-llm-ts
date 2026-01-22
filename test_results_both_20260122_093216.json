@@ -1,0 +1,81 @@
+{
+  "timestamp": "2026-01-22T09:32:00.589031",
+  "model": "gpt-4o-mini",
+  "tests": [
+    {
+      "name": "grep_email_addresses",
+      "category": "grepping",
+      "query": "Find all email addresses in the text.",
+      "context_length": 197,
+      "python": {
+        "result": "['john@example.com', 'mary@test.org', 'bob@company.net']",
+        "stats": {},
+        "duration": 2.670196056365967,
+        "valid": true,
+        "validation_message": "Should find all 3 emails"
+      },
+      "go": {
+        "result": "john@example.com, mary@test.org, bob@company.net",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 3.106506824493408,
+        "valid": true,
+        "validation_message": "Should find all 3 emails"
+      },
+      "parity": "\u2705 BOTH PASS"
+    },
+    {
+      "name": "grep_question_lines",
+      "category": "grepping",
+      "query": "How many lines contain questions (end with '?')?",
+      "context_length": 212,
+      "python": {
+        "result": "3",
+        "stats": {},
+        "duration": 3.832332134246826,
+        "valid": true,
+        "validation_message": "Exact match"
+      },
+      "go": {
+        "result": "3",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 1.5392320156097412,
+        "valid": true,
+        "validation_message": "Exact match"
+      },
+      "parity": "\u2705 BOTH PASS"
+    },
+    {
+      "name": "grep_ids_pattern",
+      "category": "grepping",
+      "query": "Find all ID numbers (format: ID-####).",
+      "context_length": 158,
+      "python": {
+        "result": "['ID-1234', 'ID-5678', 'ID-9012']",
+        "stats": {},
+        "duration": 2.337324857711792,
+        "valid": true,
+        "validation_message": "Should find all 3 IDs"
+      },
+      "go": {
+        "result": "ID-1234,ID-5678,ID-9012",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.0905587673187256,
+        "valid": true,
+        "validation_message": "Should find all 3 IDs"
+      },
+      "parity": "\u2705 BOTH PASS"
+    }
+  ]
+}

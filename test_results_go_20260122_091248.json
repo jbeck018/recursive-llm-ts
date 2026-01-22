@@ -1,0 +1,287 @@
+{
+  "timestamp": "2026-01-22T09:10:32.410711",
+  "model": "gpt-4o-mini",
+  "tests": [
+    {
+      "name": "peek_structured_list",
+      "category": "peeking",
+      "query": "What is the structure of this data? List the first 3 items.",
+      "context_length": 1883,
+      "go": {
+        "result": "The code did not produce any output.",
+        "stats": {
+          "llm_calls": 4,
+          "iterations": 4,
+          "depth": 0
+        },
+        "duration": 4.449069023132324,
+        "valid": false,
+        "validation_message": "Missing expected content: 'Item 1'"
+      }
+    },
+    {
+      "name": "peek_json_structure",
+      "category": "peeking",
+      "query": "What fields are in each record? Give me the keys.",
+      "context_length": 3023,
+      "go": {
+        "result": "id,name,score,active",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.3746931552886963,
+        "valid": true,
+        "validation_message": "All expected content found"
+      }
+    },
+    {
+      "name": "grep_email_addresses",
+      "category": "grepping",
+      "query": "Find all email addresses in the text.",
+      "context_length": 197,
+      "go": {
+        "result": "john@example.com,mary@test.org,bob@company.net",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.9871139526367188,
+        "valid": true,
+        "validation_message": "Should find all 3 emails"
+      }
+    },
+    {
+      "name": "grep_question_lines",
+      "category": "grepping",
+      "query": "How many lines contain questions (end with '?')?",
+      "context_length": 212,
+      "go": {
+        "result": "3",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 2.150455951690674,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    },
+    {
+      "name": "grep_ids_pattern",
+      "category": "grepping",
+      "query": "Find all ID numbers (format: ID-####).",
+      "context_length": 158,
+      "go": {
+        "result": "ID-1234,ID-5678,ID-9012",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 1.729701042175293,
+        "valid": true,
+        "validation_message": "Should find all 3 IDs"
+      }
+    },
+    {
+      "name": "partition_sentiment_analysis",
+      "category": "partition_map",
+      "query": "Count how many sections are positive vs negative in sentiment.",
+      "context_length": 386,
+      "go": {
+        "result": "0 positive sections, 0 negative sections",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 5.169082164764404,
+        "valid": false,
+        "validation_message": "Should identify 3 positive and 2 negative"
+      }
+    },
+    {
+      "name": "partition_category_labeling",
+      "category": "partition_map",
+      "query": "Categorize each paragraph as 'tech', 'sports', or 'food'.",
+      "context_length": 457,
+      "go": {
+        "result": "{\"tech\":[],\"sports\":[\"        Paragraph 2: The championship game went into overtime with a final score of 28-24.\"],\"food\":[\"        Paragraph 3: This recipe requires butter, flour, and eggs for the perfect cake.\"]}",
+        "stats": {
+          "llm_calls": 5,
+          "iterations": 5,
+          "depth": 0
+        },
+        "duration": 9.84165096282959,
+        "valid": true,
+        "validation_message": "Should identify all three categories"
+      }
+    },
+    {
+      "name": "summarize_sections",
+      "category": "summarization",
+      "query": "Summarize each section in one sentence.",
+      "context_length": 826,
+      "go": {
+        "result": "This paper introduces an advanced framework for recursive language models that improves context processing efficiency and performance over current techniques.",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 7.347244024276733,
+        "valid": false,
+        "validation_message": "Should provide summaries"
+      }
+    },
+    {
+      "name": "git_diff_tracking_simple",
+      "category": "long_output",
+      "query": "What is the final state of shopping_list.txt after all commits?",
+      "context_length": 225,
+      "go": {
+        "result": "unique_items.join('\\n')",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 3.287770986557007,
+        "valid": false,
+        "validation_message": "Final list should have oranges, bread, eggs, coffee, cheese, butter (no milk, no apples)"
+      }
+    },
+    {
+      "name": "bibtex_generation",
+      "category": "long_output",
+      "query": "Generate BibTeX entries for these papers.",
+      "context_length": 201,
+      "go": {
+        "result": "No BibTeX entries generated as the context appears to be empty or malformed.",
+        "stats": {
+          "llm_calls": 3,
+          "iterations": 3,
+          "depth": 0
+        },
+        "duration": 6.693346738815308,
+        "valid": false,
+        "validation_message": "Should generate BibTeX format"
+      }
+    },
+    {
+      "name": "multi_hop_facts",
+      "category": "multi_hop",
+      "query": "Who is Alice's manager's manager?",
+      "context_length": 219,
+      "go": {
+        "result": "Carol",
+        "stats": {
+          "llm_calls": 6,
+          "iterations": 6,
+          "depth": 0
+        },
+        "duration": 19.349225997924805,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    },
+    {
+      "name": "multi_hop_calculations",
+      "category": "multi_hop",
+      "query": "What is the total price for all items Alice bought?",
+      "context_length": 204,
+      "go": {
+        "result": "50",
+        "stats": {
+          "llm_calls": 3,
+          "iterations": 3,
+          "depth": 0
+        },
+        "duration": 4.302338123321533,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    },
+    {
+      "name": "edge_empty_result",
+      "category": "edge_cases",
+      "query": "Find all phone numbers.",
+      "context_length": 76,
+      "go": {
+        "error": "Go binary failed: max iterations (30) exceeded without FINAL()\n"
+      }
+    },
+    {
+      "name": "edge_large_numbers",
+      "category": "edge_cases",
+      "query": "What is the sum of all numbers?",
+      "context_length": 43,
+      "go": {
+        "result": "24444442",
+        "stats": {
+          "llm_calls": 4,
+          "iterations": 4,
+          "depth": 0
+        },
+        "duration": 5.028698205947876,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    },
+    {
+      "name": "edge_nested_structure",
+      "category": "edge_cases",
+      "query": "How many total people are mentioned across all departments?",
+      "context_length": 274,
+      "go": {
+        "result": "16",
+        "stats": {
+          "llm_calls": 2,
+          "iterations": 2,
+          "depth": 0
+        },
+        "duration": 3.5807290077209473,
+        "valid": false,
+        "validation_message": "Expected '11', got '16'"
+      }
+    },
+    {
+      "name": "context_rot_needle",
+      "category": "context_rot",
+      "query": "What is the secret code?",
+      "context_length": 54874,
+      "go": {
+        "result": "e",
+        "stats": {
+          "llm_calls": 8,
+          "iterations": 8,
+          "depth": 0
+        },
+        "duration": 13.141130924224854,
+        "valid": false,
+        "validation_message": "Missing expected content: 'ALPHA-BRAVO-CHARLIE'"
+      }
+    },
+    {
+      "name": "context_rot_last_item",
+      "category": "context_rot",
+      "query": "What is the last item number?",
+      "context_length": 13783,
+      "go": {
+        "result": "500",
+        "stats": {
+          "llm_calls": 8,
+          "iterations": 8,
+          "depth": 0
+        },
+        "duration": 15.310445070266724,
+        "valid": true,
+        "validation_message": "Exact match"
+      }
+    }
+  ]
+}
