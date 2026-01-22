@@ -6,13 +6,16 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
+    "bin",
+    "go",
     "recursive-llm/src",
     "recursive-llm/pyproject.toml",
+    "scripts/build-go-binary.js",
     "scripts/install-python-deps.js"
   ],
   "scripts": {
     "build": "tsc",
-    "postinstall": "node scripts/install-python-deps.js",
+    "postinstall": "node scripts/build-go-binary.js",
     "prepublishOnly": "npm run build",
     "release": "./scripts/release.sh",
     "start": "ts-node test/test.ts",

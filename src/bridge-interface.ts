@@ -16,6 +16,7 @@ export interface RLMConfig {
   max_depth?: number;
   max_iterations?: number;
   pythonia_timeout?: number;  // Timeout in milliseconds for pythonia calls (default: 100000ms)
+  go_binary_path?: string; // Optional override path for Go binary
   [key: string]: any;
 }
 

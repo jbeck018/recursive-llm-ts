@@ -1,6 +1,22 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { PythonBridge } from './bridge-interface';
 
-export type BridgeType = 'pythonia' | 'bunpy' | 'auto';
+export type BridgeType = 'go' | 'pythonia' | 'bunpy' | 'auto';
+
+const DEFAULT_GO_BINARY = process.platform === 'win32' ? 'rlm-go.exe' : 'rlm-go';
+
+function resolveDefaultGoBinary(): string {
+  return path.join(__dirname, '..', 'bin', DEFAULT_GO_BINARY);
+}
+
+function isGoBinaryAvailable(): boolean {
+  const envPath = process.env.RLM_GO_BINARY;
+  if (envPath && fs.existsSync(envPath)) {
+    return true;
+  }
+  return fs.existsSync(resolveDefaultGoBinary());
+}
 
 /**
  * Detect the current JavaScript runtime
@@ -23,9 +39,12 @@ function detectRuntime(): 'node' | 'bun' | 'unknown' {
  * Create appropriate Python bridge based on runtime or explicit choice
  */
 export async function createBridge(bridgeType: BridgeType = 'auto'): Promise<PythonBridge> {
-  let selectedBridge: 'pythonia' | 'bunpy';
+  let selectedBridge: 'go' | 'pythonia' | 'bunpy';
   
   if (bridgeType === 'auto') {
+    if (isGoBinaryAvailable()) {
+      selectedBridge = 'go';
+    } else {
     const runtime = detectRuntime();
     
     if (runtime === 'bun') {
@@ -35,13 +54,19 @@ export async function createBridge(bridgeType: BridgeType = 'auto'): Promise<Pyt
     } else {
       throw new Error(
         'Unable to detect runtime. Please explicitly specify bridge type.\n' +
-        'Supported runtimes: Node.js (pythonia) or Bun (bunpy)'
+        'Supported runtimes: Go binary, Node.js (pythonia), or Bun (bunpy)'
       );
+    }
     }
   } else {
     selectedBridge = bridgeType;
   }
   
+  if (selectedBridge === 'go') {
+    const { GoBridge } = await import('./go-bridge');
+    return new GoBridge();
+  }
+
   if (selectedBridge === 'bunpy') {
     try {
       const { BunpyBridge } = await import('./bunpy-bridge');

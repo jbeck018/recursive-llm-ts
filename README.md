@@ -11,26 +11,24 @@ npm install recursive-llm-ts
 ### Prerequisites
 
 - **Runtime:** Node.js **or** Bun (both supported with automatic detection)
-- **Python 3.9+** - Required for the underlying recursive-llm Python package
-- **pip** - Python package manager
+- **Go 1.21+ (recommended)** to build the native RLM binary during install
 
-### Python Dependencies
+### Go Binary
 
-Python dependencies are **automatically installed** via the `postinstall` script when you run `npm install` or `bun install`. The script will install `litellm`, `RestrictedPython`, and other required Python packages.
+This package now ships with a Go implementation of Recursive-LLM. The `postinstall` script attempts to build the Go binary locally so you can run without Python dependencies.
 
-If automatic installation fails (e.g., pip not in PATH), you can manually install:
+If Go is not available, you can build manually:
 
 ```bash
-cd node_modules/recursive-llm-ts/recursive-llm
-pip install -e .
+cd node_modules/recursive-llm-ts/go
+go build -o ../bin/rlm-go ./cmd/rlm
 ```
 
-#### For Bun Users
-Bunpy is included as a dependency, so no additional installation needed.
+You can also override the binary path:
 
-The package will automatically detect your runtime and use the appropriate Python bridge:
-- **Node.js** → uses `pythonia` (included)
-- **Bun** → uses `bunpy` (peer dependency)
+```bash
+export RLM_GO_BINARY=/path/to/rlm-go
+```
 
 ## Usage
 
@@ -62,6 +60,12 @@ If you need to explicitly specify which bridge to use:
 
 ```typescript
 import { RLM } from 'recursive-llm-ts';
+
+// Force use of the Go binary
+const rlmGo = new RLM('gpt-4o-mini', {
+  max_iterations: 15,
+  api_key: process.env.OPENAI_API_KEY
+}, 'go');
 
 // Force use of bunpy (for Bun)
 const rlm = new RLM('gpt-4o-mini', {
@@ -106,7 +110,7 @@ Process a query with the given context using recursive language models.
 
 #### `cleanup(): Promise<void>`
 
-Clean up the Python bridge and free resources.
+Clean up the bridge and free resources.
 
 ```typescript
 await rlm.cleanup();
@@ -127,6 +131,7 @@ interface RLMConfig {
   max_depth?: number;            // Maximum recursion depth (default: 5)
   max_iterations?: number;       // Maximum REPL iterations per call (default: 30)
   pythonia_timeout?: number;     // Python bridge timeout in ms (default: 100000ms = 100s)
+  go_binary_path?: string;       // Override path for Go binary (optional)
   
   // LiteLLM parameters - pass any additional parameters supported by LiteLLM
   api_version?: string;          // API version (e.g., for Azure)
@@ -166,40 +171,37 @@ const rlm = new RLM('gpt-4o-mini', {
 
 ## Custom Providers
 
-This package uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, which supports **100+ LLM providers** including OpenAI, Anthropic, AWS Bedrock, Azure, Cohere, and more.
+The Go binary uses an **OpenAI-compatible chat completion API** and works seamlessly with
+[LiteLLM proxy](https://docs.litellm.ai/docs/simple_proxy) or any provider that supports the
+OpenAI `/chat/completions` schema. This keeps the implementation provider-agnostic.
 
 ### Quick Reference
 
-| Provider | Model Format | Required Config |
-|----------|-------------|----------------|
-| OpenAI | `gpt-4o`, `gpt-4o-mini` | `api_key` |
-| Anthropic | `claude-3-5-sonnet-20241022` | `api_key` |
-| AWS Bedrock | `bedrock/anthropic.claude-3-sonnet...` | AWS env vars |
-| Azure OpenAI | `azure/gpt-4o` | `api_base`, `api_key`, `api_version` |
-| Ollama | `ollama/llama3.2` | `api_base` (optional) |
-| Custom | `openai/your-model` | `api_base`, `api_key` |
+The Go binary speaks the **OpenAI chat completion schema**, so you can:
 
-### Amazon Bedrock
+- Use OpenAI directly with `api_key`
+- Use an OpenAI-compatible endpoint (Azure OpenAI, vLLM, Ollama)
+- Use a LiteLLM proxy to reach providers like Anthropic, Bedrock, or Cohere
+
+### Amazon Bedrock (via LiteLLM proxy)
 
 ```typescript
 import { RLM } from 'recursive-llm-ts';
 
 const rlm = new RLM('bedrock/anthropic.claude-3-sonnet-20240229-v1:0', {
-  api_key: process.env.AWS_ACCESS_KEY_ID,
+  api_base: 'http://localhost:4000', // LiteLLM proxy URL
+  api_key: process.env.LITELLM_API_KEY,
   max_iterations: 15
 });
-
-// Set AWS credentials via environment variables:
-// AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION_NAME
 ```
 
 ### Azure OpenAI
 
 ```typescript
-const rlm = new RLM('azure/gpt-4o', {
-  api_base: 'https://your-resource.openai.azure.com',
+const rlm = new RLM('gpt-4o', {
+  api_base: 'https://your-resource.openai.azure.com/openai/deployments/your-deployment',
   api_key: process.env.AZURE_API_KEY,
-  api_version: '2024-02-15-preview' // Pass any LiteLLM params
+  api_version: '2024-02-15-preview' // Passed through to the OpenAI-compatible API
 });
 ```
 
@@ -238,14 +240,14 @@ See the [LiteLLM documentation](https://docs.litellm.ai/docs/providers) for the 
 
 ## How It Works
 
-This package provides a TypeScript wrapper around the Python `recursive-llm` package, enabling seamless integration into Node.js/TypeScript applications. It uses [JSPyBridge (pythonia)](https://github.com/extremeheat/JSPyBridge) to provide direct Python interop - Python is bundled and runs in-process, so no external Python installation is needed.
+This package provides a TypeScript wrapper around a Go implementation of Recursive-LLM, enabling seamless integration into Node.js/TypeScript applications without Python dependencies. The Go binary is built locally (or supplied via `RLM_GO_BINARY`) and invoked for completions.
 
 The recursive-llm approach breaks down large contexts into manageable chunks and processes them recursively, allowing you to work with documents of any size without hitting token limits.
 
 ### Key Features
 
-- ✅ **Zero Python setup** - Python runtime bundled via JSPyBridge
-- ✅ **Direct interop** - Native Python-JavaScript bridge (no JSON serialization)
+- ✅ **No Python dependency** - Go binary handles the full recursive loop
+- ✅ **Provider-agnostic** - Works with OpenAI-compatible APIs or LiteLLM proxy
 - ✅ **Type-safe** - Full TypeScript type definitions
 - ✅ **Simple API** - Just `npm install` and start using
 
