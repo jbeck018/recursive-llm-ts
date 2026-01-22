@@ -10,15 +10,23 @@ import (
 )
 
 type requestPayload struct {
-	Model   string                 `json:"model"`
-	Query   string                 `json:"query"`
-	Context string                 `json:"context"`
-	Config  map[string]interface{} `json:"config"`
+	Model      string                 `json:"model"`
+	Query      string                 `json:"query"`
+	Context    string                 `json:"context"`
+	Config     map[string]interface{} `json:"config"`
+	Structured *structuredRequest     `json:"structured,omitempty"`
+}
+
+type structuredRequest struct {
+	Schema            *rlm.JSONSchema `json:"schema"`
+	ParallelExecution bool            `json:"parallelExecution"`
+	MaxRetries        int             `json:"maxRetries"`
 }
 
 type responsePayload struct {
-	Result string      `json:"result"`
-	Stats  rlm.RLMStats `json:"stats"`
+	Result           interface{}  `json:"result"`
+	Stats            rlm.RLMStats `json:"stats"`
+	StructuredResult bool         `json:"structured_result,omitempty"`
 }
 
 func main() {
@@ -42,15 +50,39 @@ func main() {
 	config := rlm.ConfigFromMap(req.Config)
 	engine := rlm.New(req.Model, config)
 
-	result, stats, err := engine.Completion(req.Query, req.Context)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	var resp responsePayload
 
-	resp := responsePayload{
-		Result: result,
-		Stats:  stats,
+	// Handle structured completion if requested
+	if req.Structured != nil {
+		structuredConfig := &rlm.StructuredConfig{
+			Schema:            req.Structured.Schema,
+			ParallelExecution: req.Structured.ParallelExecution,
+			MaxRetries:        req.Structured.MaxRetries,
+		}
+
+		result, stats, err := engine.StructuredCompletion(req.Query, req.Context, structuredConfig)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		resp = responsePayload{
+			Result:           result,
+			Stats:            stats,
+			StructuredResult: true,
+		}
+	} else {
+		// Regular completion
+		result, stats, err := engine.Completion(req.Query, req.Context)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+
+		resp = responsePayload{
+			Result: result,
+			Stats:  stats,
+		}
 	}
 
 	payload, err := json.Marshal(resp)

@@ -57,8 +57,8 @@ async function runTests() {
     try {
       const rlm = new RLM('gpt-4o-mini', {
         ...test.config,
-        bridge: BridgeType.GO  // Force Go bridge
-      });
+        api_key: process.env.OPENAI_API_KEY
+      }, 'go');  // Force Go bridge
 
       const startTime = Date.now();
       const result = await rlm.completion(test.query, test.context);

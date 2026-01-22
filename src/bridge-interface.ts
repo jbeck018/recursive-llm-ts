@@ -5,8 +5,9 @@ export interface RLMStats {
 }
 
 export interface RLMResult {
-  result: string;
+  result: string | any; // Can be string for normal completions or object for structured
   stats: RLMStats;
+  structured_result?: boolean; // Flag indicating if result is structured
 }
 
 export interface RLMConfig {

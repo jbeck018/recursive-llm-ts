@@ -1,7 +1,7 @@
 {
   "name": "recursive-llm-ts",
-  "version": "3.0.2",
-  "description": "TypeScript bridge for recursive-llm: Recursive Language Models for unbounded context processing",
+  "version": "4.0.0",
+  "description": "TypeScript bridge for recursive-llm: Recursive Language Models for unbounded context processing with structured outputs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -24,7 +24,11 @@
     "recursive",
     "context",
     "nlp",
-    "language-model"
+    "language-model",
+    "structured-output",
+    "zod",
+    "schema",
+    "extraction"
   ],
   "author": "",
   "license": "MIT",
@@ -36,7 +40,9 @@
     "url": "https://github.com/jbeck018/recursive-llm-ts/issues"
   },
   "homepage": "https://github.com/jbeck018/recursive-llm-ts#readme",
-  "dependencies": {},
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "@types/node": "^20.11.19",
     "dotenv": "^16.4.5",

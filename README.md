@@ -11,7 +11,8 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 💾 **3x Less Memory** - Efficient Go implementation  
 📦 **Single Binary** - Easy distribution and deployment  
 🔄 **Unbounded Context** - Process 10M+ tokens without degradation  
-🎯 **Provider Agnostic** - Works with OpenAI, Anthropic, Azure, Bedrock, local models
+🎯 **Provider Agnostic** - Works with OpenAI, Anthropic, Azure, Bedrock, local models  
+🔍 **Structured Outputs** - Extract typed data with Zod schemas and parallel execution
 
 ## Installation
 
@@ -71,6 +72,83 @@ console.log(result.result);
 console.log('Stats:', result.stats);
 ```
 
+### Structured Outputs with Zod Schemas
+
+Extract structured, typed data from any context using Zod schemas. Supports complex nested objects, arrays, enums, and automatic parallel execution for performance.
+
+```typescript
+import { RLM } from 'recursive-llm-ts';
+import { z } from 'zod';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY
+});
+
+// Define your schema
+const sentimentSchema = z.object({
+  sentimentValue: z.number().min(1).max(5),
+  sentimentExplanation: z.string(),
+  keyPhrases: z.array(z.object({
+    phrase: z.string(),
+    sentiment: z.number()
+  })),
+  topics: z.array(z.enum(['pricing', 'features', 'support', 'competition']))
+});
+
+// Extract structured data
+const result = await rlm.structuredCompletion(
+  'Analyze the sentiment and extract key information',
+  callTranscript,
+  sentimentSchema
+);
+
+// result.result is fully typed!
+console.log(result.result.sentimentValue); // number
+console.log(result.result.keyPhrases); // Array<{phrase: string, sentiment: number}>
+```
+
+**Key Benefits:**
+- ✅ **Type-safe** - Full TypeScript types from your Zod schema
+- ✅ **Automatic validation** - Retries with error feedback if schema doesn't match
+- ✅ **Parallel execution** - Complex schemas processed in parallel with goroutines (3-5x faster)
+- ✅ **Deep nesting** - Supports arbitrarily nested objects and arrays
+- ✅ **Enum support** - Validates enum values automatically
+
+**Performance Options:**
+```typescript
+// Enable/disable parallel execution
+const result = await rlm.structuredCompletion(
+  query,
+  context,
+  schema,
+  { 
+    parallelExecution: true,  // default: true for complex schemas
+    maxRetries: 3              // default: 3
+  }
+);
+```
+
+### Agent Coordinator (Advanced)
+
+For complex multi-field schemas, use the coordinator API:
+
+```typescript
+import { RLMAgentCoordinator } from 'recursive-llm-ts';
+
+const coordinator = new RLMAgentCoordinator(
+  'gpt-4o-mini',
+  { api_key: process.env.OPENAI_API_KEY },
+  'auto',
+  { parallelExecution: true }
+);
+
+const result = await coordinator.processComplex(
+  'Extract comprehensive call analysis',
+  transcript,
+  complexSchema
+);
+```
+
 ### Bridge Selection
 
 The package automatically uses the Go binary by default (if available). You can explicitly specify a bridge if needed:
@@ -122,6 +200,28 @@ Process a query with the given context using recursive language models.
 
 **Returns:**
 - `Promise<RLMResult>`: Result containing the answer and statistics
+
+#### `structuredCompletion<T>(query: string, context: string, schema: ZodSchema<T>, options?): Promise<StructuredRLMResult<T>>`
+
+Extract structured, typed data from context using a Zod schema.
+
+**Parameters:**
+- `query`: The extraction task to perform
+- `context`: The context/document to process
+- `schema`: Zod schema defining the output structure
+- `options`: Optional configuration
+  - `parallelExecution?: boolean` - Enable parallel processing (default: true)
+  - `maxRetries?: number` - Max validation retries (default: 3)
+
+**Returns:**
+- `Promise<StructuredRLMResult<T>>`: Typed result matching your schema
+
+**Example:**
+```typescript
+const schema = z.object({ score: z.number(), summary: z.string() });
+const result = await rlm.structuredCompletion('Analyze', doc, schema);
+// result.result is typed as { score: number, summary: string }
+```
 
 #### `cleanup(): Promise<void>`
 

@@ -35,9 +35,9 @@ function assertBinaryExists(binaryPath: string): void {
   }
 }
 
-function sanitizeConfig(config: RLMConfig): Record<string, unknown> {
-  const { pythonia_timeout, go_binary_path, ...sanitized } = config;
-  return sanitized;
+function sanitizeConfig(config: RLMConfig): { config: Record<string, unknown>, structured?: any } {
+  const { pythonia_timeout, go_binary_path, structured, ...sanitized } = config;
+  return { config: sanitized, structured };
 }
 
 export class GoBridge implements PythonBridge {
@@ -50,11 +50,13 @@ export class GoBridge implements PythonBridge {
     const binaryPath = resolveBinaryPath(rlmConfig);
     assertBinaryExists(binaryPath);
 
+    const { config, structured } = sanitizeConfig(rlmConfig);
     const payload = JSON.stringify({
       model,
       query,
       context,
-      config: sanitizeConfig(rlmConfig)
+      config,
+      structured
     });
 
     return new Promise<RLMResult>((resolve, reject) => {

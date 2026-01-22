@@ -50,7 +50,10 @@ async function main() {
   console.log('\nProcessing with RLM...\n');
 
   try {
-    const rlm = new RLM('gpt-4o-mini', { max_iterations: 15 });
+    const rlm = new RLM('gpt-4o-mini', { 
+      max_iterations: 15,
+      api_key: process.env.OPENAI_API_KEY
+    });
 
     const result = await rlm.completion(
       'What were the key milestones in AI development according to this document?',
