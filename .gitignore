@@ -24,3 +24,9 @@ coverage/
 # Build artifacts
 *.tgz
 bin/rlm-go*
+
+# Test files and notes
+FIX_NOTES.md
+prompt-examples.ts
+test-conversation-insights.ts
+test-output.txt

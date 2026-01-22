@@ -37,22 +37,28 @@ func (r *RLM) structuredCompletionDirect(query string, context string, config *S
 	
 	// Build comprehensive prompt with context and schema
 	constraints := generateSchemaConstraints(config.Schema)
+	requiredFieldsHint := ""
+	if config.Schema.Type == "object" && len(config.Schema.Required) > 0 {
+		requiredFieldsHint = fmt.Sprintf("\nREQUIRED FIELDS (you MUST include these): %s\n", strings.Join(config.Schema.Required, ", "))
+	}
+	
 	prompt := fmt.Sprintf(
 		"You are a data extraction assistant. Extract information from the context and return it as JSON.\n\n"+
 		"Context:\n%s\n\n"+
 		"Task: %s\n\n"+
-		"Required JSON Schema:\n%s\n\n"+
+		"Required JSON Schema:\n%s%s\n\n"+
 		"%s"+
 		"CRITICAL INSTRUCTIONS:\n"+
 		"1. Return ONLY valid JSON - no explanations, no markdown, no code blocks\n"+
 		"2. The JSON must match the schema EXACTLY\n"+
-		"3. Include ALL required fields\n"+
+		"3. Include ALL required fields (see list above)\n"+
 		"4. Use correct data types (strings in quotes, numbers without quotes, arrays in [], objects in {})\n"+
 		"5. For arrays, return actual JSON arrays [] not objects\n"+
 		"6. For enum fields, use ONLY the EXACT values listed - do not paraphrase or substitute\n"+
-		"7. Start your response directly with { or [ depending on the schema\n\n"+
+		"7. For nested objects, ensure ALL required fields within those objects are included\n"+
+		"8. Start your response directly with { or [ depending on the schema\n\n"+
 		"JSON Response:",
-		context, query, string(schemaJSON), constraints,
+		context, query, string(schemaJSON), requiredFieldsHint, constraints,
 	)
 
 	var lastErr error
@@ -192,7 +198,7 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 	if schema.Type == "object" && schema.Properties != nil {
 		for fieldName, fieldSchema := range schema.Properties {
 			if fieldSchema.Type == "number" {
-				if strings.Contains(strings.ToLower(fieldName), "sentiment") {
+				if strings.Contains(strings.ToLower(fieldName), "sentiment") || strings.Contains(strings.ToLower(fieldName), "score") {
 					constraints = append(constraints, fmt.Sprintf("- %s must be a number between 1 and 5 (inclusive)", fieldName))
 				}
 			}
@@ -201,6 +207,10 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 			}
 			if fieldSchema.Type == "array" {
 				constraints = append(constraints, fmt.Sprintf("- %s must be a JSON array []", fieldName))
+			}
+			// Add constraint for nested objects with required fields
+			if fieldSchema.Type == "object" && len(fieldSchema.Required) > 0 {
+				constraints = append(constraints, fmt.Sprintf("- %s must be an object with these REQUIRED fields: %s", fieldName, strings.Join(fieldSchema.Required, ", ")))
 			}
 		}
 	}
@@ -228,7 +238,7 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 // generateFieldQuery creates a focused query for a specific field
 func generateFieldQuery(fieldName string, schema *JSONSchema) string {
 	fieldQueries := map[string]string{
-		"sentiment":             "Analyze the overall sentiment of this conversation. Provide a sentiment score from 1-5 and a detailed explanation.",
+		"sentiment":             "Analyze the overall sentiment of this conversation. Return a JSON object with: score (integer 1-5), confidence (number 0-1), and optional reasoning (string).",
 		"sentimentValue":        "What is the overall sentiment score (1-5) of this conversation?",
 		"sentimentExplanation":  "Explain in 2-3 sentences why the conversation has this sentiment score.",
 		"phrases":               "Extract key phrases that significantly impacted the sentiment, excluding neutral (3-value) phrases. For each phrase, include the sentiment value and the phrase itself (1 sentence).",
@@ -237,6 +247,12 @@ func generateFieldQuery(fieldName string, schema *JSONSchema) string {
 
 	if query, exists := fieldQueries[fieldName]; exists {
 		return query
+	}
+
+	// For object types, provide more detailed instructions about required fields
+	if schema.Type == "object" && len(schema.Required) > 0 {
+		return fmt.Sprintf("Extract the %s from the conversation. Return a JSON object with these required fields: %s.", 
+			fieldName, strings.Join(schema.Required, ", "))
 	}
 
 	return fmt.Sprintf("Extract the %s from the conversation.", fieldName)
@@ -264,11 +280,48 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 		if parseErr == nil {
 			// Check if it's a map (LLM wrapped the value in an object)
 			if valueMap, ok := value.(map[string]interface{}); ok {
-				// If it's a single-key object, extract the value
-				if len(valueMap) == 1 {
+				// Try to unwrap based on expected type
+				switch schema.Type {
+				case "array":
+					// Look for any array value in the map
 					for _, v := range valueMap {
-						value = v
-						break
+						if arr, ok := v.([]interface{}); ok {
+							value = arr
+							break
+						}
+					}
+				case "string":
+					// Look for any string value in the map
+					for _, v := range valueMap {
+						if str, ok := v.(string); ok {
+							value = str
+							break
+						}
+					}
+				case "number":
+					// Look for any number value in the map
+					for _, v := range valueMap {
+						switch v.(type) {
+						case float64, float32, int, int32, int64:
+							value = v
+							break
+						}
+					}
+				case "boolean":
+					// Look for any boolean value in the map
+					for _, v := range valueMap {
+						if b, ok := v.(bool); ok {
+							value = b
+							break
+						}
+					}
+				default:
+					// For other types, extract single-key value
+					if len(valueMap) == 1 {
+						for _, v := range valueMap {
+							value = v
+							break
+						}
 					}
 				}
 			}
