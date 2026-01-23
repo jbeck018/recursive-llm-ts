@@ -80,16 +80,20 @@ func (r *RLM) structuredCompletionDirect(query string, context string, config *S
 			continue
 		}
 
-		parsed, err := parseAndValidateJSON(result, config.Schema)
+	parsed, err := parseAndValidateJSON(result, config.Schema)
 		if err != nil {
 			lastErr = err
 			if attempt < config.MaxRetries-1 {
-				// Retry with error feedback
-				prompt = fmt.Sprintf(
-					"%s\n\nPrevious attempt failed: %s\n"+
-					"Please fix the error and provide a valid JSON object.",
-					prompt, err.Error(),
-				)
+				// Build detailed validation feedback similar to Instructor
+				validationFeedback := buildValidationFeedback(err, config.Schema, result)
+				
+				// Retry with detailed error feedback
+				messages = []Message{
+					{Role: "system", Content: "You are a data extraction assistant. Respond only with valid JSON objects."},
+					{Role: "user", Content: prompt},
+					{Role: "assistant", Content: result},
+					{Role: "user", Content: validationFeedback},
+				}
 			}
 			continue
 		}
@@ -501,4 +505,76 @@ func contains(arr []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// buildValidationFeedback creates detailed feedback for LLM retry attempts
+func buildValidationFeedback(validationErr error, schema *JSONSchema, previousResponse string) string {
+	errMsg := validationErr.Error()
+	
+	var feedback strings.Builder
+	feedback.WriteString("❌ VALIDATION ERROR - Your previous response was invalid.\n\n")
+	feedback.WriteString(fmt.Sprintf("ERROR: %s\n\n", errMsg))
+	
+	// Extract what field caused the issue
+	if strings.Contains(errMsg, "missing required field:") {
+		// Parse out the field name
+		fieldName := strings.TrimPrefix(errMsg, "missing required field: ")
+		fieldName = strings.TrimSpace(fieldName)
+		
+		feedback.WriteString("🔍 SPECIFIC ISSUE:\n")
+		feedback.WriteString(fmt.Sprintf("The field '%s' is REQUIRED but was not provided.\n\n", fieldName))
+		
+		// Find the schema for this field and provide details
+		if schema.Type == "object" && schema.Properties != nil {
+			if fieldSchema, exists := schema.Properties[fieldName]; exists {
+				feedback.WriteString("📋 FIELD REQUIREMENTS:\n")
+				feedback.WriteString(fmt.Sprintf("- Field name: '%s'\n", fieldName))
+				feedback.WriteString(fmt.Sprintf("- Type: %s\n", fieldSchema.Type))
+				
+				if fieldSchema.Type == "object" && len(fieldSchema.Required) > 0 {
+					feedback.WriteString(fmt.Sprintf("- This is an object with required fields: %s\n", strings.Join(fieldSchema.Required, ", ")))
+					
+					if fieldSchema.Properties != nil {
+						feedback.WriteString("\n📝 NESTED FIELD DETAILS:\n")
+						for nestedField, nestedSchema := range fieldSchema.Properties {
+							isRequired := contains(fieldSchema.Required, nestedField)
+							requiredMark := ""
+							if isRequired {
+								requiredMark = " [REQUIRED]"
+							}
+							feedback.WriteString(fmt.Sprintf("  • %s: %s%s\n", nestedField, nestedSchema.Type, requiredMark))
+						}
+					}
+				}
+				
+				if fieldSchema.Type == "array" && fieldSchema.Items != nil {
+					feedback.WriteString(fmt.Sprintf("- This is an array of: %s\n", fieldSchema.Items.Type))
+				}
+			}
+		}
+	} else if strings.Contains(errMsg, "expected") {
+		feedback.WriteString("🔍 SPECIFIC ISSUE:\n")
+		feedback.WriteString("Type mismatch - you provided the wrong data type.\n\n")
+	}
+	
+	// Show a snippet of what they provided
+	if len(previousResponse) > 0 {
+		snippet := previousResponse
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		feedback.WriteString("\n📤 YOUR PREVIOUS RESPONSE:\n")
+		feedback.WriteString(snippet)
+		feedback.WriteString("\n\n")
+	}
+	
+	feedback.WriteString("✅ ACTION REQUIRED:\n")
+	feedback.WriteString("Please provide a COMPLETE and VALID JSON response that includes ALL required fields.\n")
+	feedback.WriteString("Remember:\n")
+	feedback.WriteString("1. Include ALL required fields (see above)\n")
+	feedback.WriteString("2. Use correct data types (string, number, object, array)\n")
+	feedback.WriteString("3. For nested objects, include ALL their required fields too\n")
+	feedback.WriteString("4. Return ONLY valid JSON - no markdown, no explanations\n")
+	
+	return feedback.String()
 }
