@@ -640,7 +640,7 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 	errMsg := validationErr.Error()
 	
 	var feedback strings.Builder
-	feedback.WriteString("❌ VALIDATION ERROR - Your previous response was invalid.\n\n")
+	feedback.WriteString("VALIDATION ERROR - Your previous response was invalid.\n\n")
 	feedback.WriteString(fmt.Sprintf("ERROR: %s\n\n", errMsg))
 	
 	// Extract what field caused the issue
@@ -649,13 +649,13 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 		fieldName := strings.TrimPrefix(errMsg, "missing required field: ")
 		fieldName = strings.TrimSpace(fieldName)
 		
-		feedback.WriteString("🔍 SPECIFIC ISSUE:\n")
+		feedback.WriteString("SPECIFIC ISSUE:\n")
 		feedback.WriteString(fmt.Sprintf("The field '%s' is REQUIRED but was not provided.\n\n", fieldName))
 		
 		// Find the schema for this field and provide details
 		if schema.Type == "object" && schema.Properties != nil {
 			if fieldSchema, exists := schema.Properties[fieldName]; exists {
-				feedback.WriteString("📋 FIELD REQUIREMENTS:\n")
+				feedback.WriteString("FIELD REQUIREMENTS:\n")
 				feedback.WriteString(fmt.Sprintf("- Field name: '%s'\n", fieldName))
 				feedback.WriteString(fmt.Sprintf("- Type: %s\n", fieldSchema.Type))
 				
@@ -663,14 +663,14 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 					feedback.WriteString(fmt.Sprintf("- This is an object with required fields: %s\n", strings.Join(fieldSchema.Required, ", ")))
 					
 					if fieldSchema.Properties != nil {
-						feedback.WriteString("\n📝 NESTED FIELD DETAILS:\n")
+						feedback.WriteString("\nNESTED FIELD DETAILS:\n")
 						for nestedField, nestedSchema := range fieldSchema.Properties {
 							isRequired := contains(fieldSchema.Required, nestedField)
 							requiredMark := ""
 							if isRequired {
 								requiredMark = " [REQUIRED]"
 							}
-							feedback.WriteString(fmt.Sprintf("  • %s: %s%s\n", nestedField, nestedSchema.Type, requiredMark))
+							feedback.WriteString(fmt.Sprintf("  - %s: %s%s\n", nestedField, nestedSchema.Type, requiredMark))
 						}
 					}
 				}
@@ -681,7 +681,7 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 			}
 		}
 	} else if strings.Contains(errMsg, "expected") {
-		feedback.WriteString("🔍 SPECIFIC ISSUE:\n")
+		feedback.WriteString("SPECIFIC ISSUE:\n")
 		feedback.WriteString("Type mismatch - you provided the wrong data type.\n\n")
 	}
 	
@@ -691,12 +691,12 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 		if len(snippet) > 200 {
 			snippet = snippet[:200] + "..."
 		}
-		feedback.WriteString("\n📤 YOUR PREVIOUS RESPONSE:\n")
+		feedback.WriteString("\nYOUR PREVIOUS RESPONSE:\n")
 		feedback.WriteString(snippet)
 		feedback.WriteString("\n\n")
 	}
 	
-	feedback.WriteString("✅ ACTION REQUIRED:\n")
+	feedback.WriteString("ACTION REQUIRED:\n")
 	feedback.WriteString("Please provide a COMPLETE and VALID JSON response that includes ALL required fields.\n")
 	feedback.WriteString("Remember:\n")
 	feedback.WriteString("1. Include ALL required fields (see above)\n")
