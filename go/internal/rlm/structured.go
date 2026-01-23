@@ -64,13 +64,13 @@ func (r *RLM) structuredCompletionDirect(query string, context string, config *S
 	var lastErr error
 	stats := RLMStats{Depth: r.currentDepth}
 	
+	// Initialize messages for first attempt
+	messages := []Message{
+		{Role: "system", Content: "You are a data extraction assistant. Respond only with valid JSON objects."},
+		{Role: "user", Content: prompt},
+	}
+	
 	for attempt := 0; attempt < config.MaxRetries; attempt++ {
-		// Call LLM directly without REPL
-		messages := []Message{
-			{Role: "system", Content: "You are a data extraction assistant. Respond only with valid JSON objects."},
-			{Role: "user", Content: prompt},
-		}
-		
 		result, err := r.callLLM(messages)
 		stats.LlmCalls++
 		stats.Iterations++
@@ -80,20 +80,18 @@ func (r *RLM) structuredCompletionDirect(query string, context string, config *S
 			continue
 		}
 
-	parsed, err := parseAndValidateJSON(result, config.Schema)
+		parsed, err := parseAndValidateJSON(result, config.Schema)
 		if err != nil {
 			lastErr = err
 			if attempt < config.MaxRetries-1 {
 				// Build detailed validation feedback similar to Instructor
 				validationFeedback := buildValidationFeedback(err, config.Schema, result)
 				
-				// Retry with detailed error feedback
-				messages = []Message{
-					{Role: "system", Content: "You are a data extraction assistant. Respond only with valid JSON objects."},
-					{Role: "user", Content: prompt},
-					{Role: "assistant", Content: result},
-					{Role: "user", Content: validationFeedback},
-				}
+				// Update messages with previous attempt and validation feedback for retry
+				messages = append(messages, 
+					Message{Role: "assistant", Content: result},
+					Message{Role: "user", Content: validationFeedback},
+				)
 			}
 			continue
 		}
@@ -201,16 +199,55 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 	
 	if schema.Type == "object" && schema.Properties != nil {
 		for fieldName, fieldSchema := range schema.Properties {
-			if fieldSchema.Type == "number" {
-				if strings.Contains(strings.ToLower(fieldName), "sentiment") || strings.Contains(strings.ToLower(fieldName), "score") {
-					constraints = append(constraints, fmt.Sprintf("- %s must be a number between 1 and 5 (inclusive)", fieldName))
+			// Number constraints with min/max
+			if fieldSchema.Type == "number" || fieldSchema.Type == "integer" {
+				var constraintParts []string
+				if fieldSchema.Minimum != nil {
+					constraintParts = append(constraintParts, fmt.Sprintf(">= %v", *fieldSchema.Minimum))
+				}
+				if fieldSchema.Maximum != nil {
+					constraintParts = append(constraintParts, fmt.Sprintf("<= %v", *fieldSchema.Maximum))
+				}
+				if len(constraintParts) > 0 {
+					constraints = append(constraints, fmt.Sprintf("- %s must be %s (%s)", fieldName, fieldSchema.Type, strings.Join(constraintParts, " and ")))
 				}
 			}
+			
+			// String constraints
+			if fieldSchema.Type == "string" {
+				var stringConstraints []string
+				if fieldSchema.MinLength != nil {
+					stringConstraints = append(stringConstraints, fmt.Sprintf("minLength: %d", *fieldSchema.MinLength))
+				}
+				if fieldSchema.MaxLength != nil {
+					stringConstraints = append(stringConstraints, fmt.Sprintf("maxLength: %d", *fieldSchema.MaxLength))
+				}
+				if fieldSchema.Format != "" {
+					stringConstraints = append(stringConstraints, fmt.Sprintf("format: %s", fieldSchema.Format))
+				}
+				if len(stringConstraints) > 0 {
+					constraints = append(constraints, fmt.Sprintf("- %s must be string (%s)", fieldName, strings.Join(stringConstraints, ", ")))
+				}
+			}
+			
 			if fieldSchema.Enum != nil && len(fieldSchema.Enum) > 0 {
 				constraints = append(constraints, fmt.Sprintf("- %s must be EXACTLY one of these values: %s (use these exact strings, do not modify)", fieldName, strings.Join(fieldSchema.Enum, ", ")))
 			}
+			
+			// Array constraints
 			if fieldSchema.Type == "array" {
-				constraints = append(constraints, fmt.Sprintf("- %s must be a JSON array []", fieldName))
+				var arrayConstraints []string
+				if fieldSchema.MinItems != nil {
+					arrayConstraints = append(arrayConstraints, fmt.Sprintf("minItems: %d", *fieldSchema.MinItems))
+				}
+				if fieldSchema.MaxItems != nil {
+					arrayConstraints = append(arrayConstraints, fmt.Sprintf("maxItems: %d", *fieldSchema.MaxItems))
+				}
+				if len(arrayConstraints) > 0 {
+					constraints = append(constraints, fmt.Sprintf("- %s must be JSON array (%s)", fieldName, strings.Join(arrayConstraints, ", ")))
+				} else {
+					constraints = append(constraints, fmt.Sprintf("- %s must be a JSON array []", fieldName))
+				}
 			}
 			// Add constraint for nested objects with required fields
 			if fieldSchema.Type == "object" && len(fieldSchema.Required) > 0 {
@@ -219,13 +256,24 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 		}
 	}
 	
-	// Check nested array items for constraints
+	// Check nested array items for constraints  
 	if schema.Type == "array" && schema.Items != nil {
 		if schema.Items.Type == "object" && schema.Items.Properties != nil {
 			for fieldName, fieldSchema := range schema.Items.Properties {
-				if fieldSchema.Type == "number" && strings.Contains(strings.ToLower(fieldName), "sentiment") {
-					constraints = append(constraints, fmt.Sprintf("- Each item's %s must be between 1 and 5", fieldName))
+				// Number constraints in array items
+				if fieldSchema.Type == "number" || fieldSchema.Type == "integer" {
+					var constraintParts []string
+					if fieldSchema.Minimum != nil {
+						constraintParts = append(constraintParts, fmt.Sprintf(">= %v", *fieldSchema.Minimum))
+					}
+					if fieldSchema.Maximum != nil {
+						constraintParts = append(constraintParts, fmt.Sprintf("<= %v", *fieldSchema.Maximum))
+					}
+					if len(constraintParts) > 0 {
+						constraints = append(constraints, fmt.Sprintf("- Each item's %s must be %s (%s)", fieldName, fieldSchema.Type, strings.Join(constraintParts, " and ")))
+					}
 				}
+				
 				if fieldSchema.Enum != nil && len(fieldSchema.Enum) > 0 {
 					constraints = append(constraints, fmt.Sprintf("- Each item's %s must be EXACTLY one of these values: %s (copy exactly, do not modify these strings)", fieldName, strings.Join(fieldSchema.Enum, ", ")))
 				}
@@ -257,6 +305,12 @@ func generateFieldQuery(fieldName string, schema *JSONSchema) string {
 				}
 			}
 			queryParts = append(queryParts, fmt.Sprintf("Return a JSON object with these REQUIRED fields: %s.", strings.Join(fieldDetails, ", ")))
+			
+			// Add example structure for nested objects to improve LLM compliance
+			example := buildExampleJSON(schema)
+			if example != "" {
+				queryParts = append(queryParts, fmt.Sprintf("Example format: %s", example))
+			}
 		} else {
 			queryParts = append(queryParts, "Return a JSON object.")
 		}
@@ -505,6 +559,80 @@ func contains(arr []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// buildExampleJSON creates an example JSON structure for nested objects
+func buildExampleJSON(schema *JSONSchema) string {
+	if schema.Type != "object" || schema.Properties == nil {
+		return ""
+	}
+	
+	// Only generate examples for objects with required fields
+	if len(schema.Required) == 0 {
+		return ""
+	}
+	
+	example := make(map[string]interface{})
+	
+	for fieldName, fieldSchema := range schema.Properties {
+		isRequired := contains(schema.Required, fieldName)
+		
+		// Only include required fields in example
+		if !isRequired {
+			continue
+		}
+		
+		switch fieldSchema.Type {
+		case "string":
+			if fieldSchema.Enum != nil && len(fieldSchema.Enum) > 0 {
+				example[fieldName] = fieldSchema.Enum[0]
+			} else {
+				example[fieldName] = "example value"
+			}
+		case "number":
+			// Use sensible defaults for common field names
+			if strings.Contains(strings.ToLower(fieldName), "score") || strings.Contains(strings.ToLower(fieldName), "sentiment") {
+				example[fieldName] = 3
+			} else if strings.Contains(strings.ToLower(fieldName), "confidence") {
+				example[fieldName] = 0.8
+			} else {
+				example[fieldName] = 0
+			}
+		case "integer":
+			if strings.Contains(strings.ToLower(fieldName), "score") || strings.Contains(strings.ToLower(fieldName), "sentiment") {
+				example[fieldName] = 3
+			} else {
+				example[fieldName] = 0
+			}
+		case "boolean":
+			example[fieldName] = true
+		case "array":
+			example[fieldName] = []interface{}{}
+		case "object":
+			// Recursively build nested object
+			nestedExample := buildExampleJSON(fieldSchema)
+			if nestedExample != "" {
+				var nested map[string]interface{}
+				if err := json.Unmarshal([]byte(nestedExample), &nested); err == nil {
+					example[fieldName] = nested
+				}
+			} else {
+				example[fieldName] = map[string]interface{}{}
+			}
+		}
+	}
+	
+	if len(example) == 0 {
+		return ""
+	}
+	
+	// Marshal to JSON
+	jsonBytes, err := json.Marshal(example)
+	if err != nil {
+		return ""
+	}
+	
+	return string(jsonBytes)
 }
 
 // buildValidationFeedback creates detailed feedback for LLM retry attempts

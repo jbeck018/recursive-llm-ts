@@ -13,12 +13,30 @@ type RLMStats struct {
 }
 
 type JSONSchema struct {
-	Type       string                 `json:"type"`
-	Properties map[string]*JSONSchema `json:"properties,omitempty"`
-	Items      *JSONSchema            `json:"items,omitempty"`
-	Required   []string               `json:"required,omitempty"`
-	Enum       []string               `json:"enum,omitempty"`
-	Nullable   bool                   `json:"nullable,omitempty"`
+	Type                 string                 `json:"type"`
+	Properties           map[string]*JSONSchema `json:"properties,omitempty"`
+	Items                *JSONSchema            `json:"items,omitempty"`
+	Required             []string               `json:"required,omitempty"`
+	Enum                 []string               `json:"enum,omitempty"`
+	Nullable             bool                   `json:"nullable,omitempty"`
+	// Number constraints
+	Minimum              *float64               `json:"minimum,omitempty"`
+	Maximum              *float64               `json:"maximum,omitempty"`
+	MultipleOf           *float64               `json:"multipleOf,omitempty"`
+	// String constraints
+	MinLength            *int                   `json:"minLength,omitempty"`
+	MaxLength            *int                   `json:"maxLength,omitempty"`
+	Pattern              string                 `json:"pattern,omitempty"`
+	Format               string                 `json:"format,omitempty"`
+	// Array constraints
+	MinItems             *int                   `json:"minItems,omitempty"`
+	MaxItems             *int                   `json:"maxItems,omitempty"`
+	UniqueItems          bool                   `json:"uniqueItems,omitempty"`
+	// Object constraints
+	AdditionalProperties interface{}            `json:"additionalProperties,omitempty"`
+	// Union/Intersection
+	AnyOf                []*JSONSchema          `json:"anyOf,omitempty"`
+	AllOf                []*JSONSchema          `json:"allOf,omitempty"`
 }
 
 type SubTask struct {

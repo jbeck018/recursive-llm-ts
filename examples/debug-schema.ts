@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { z } from 'zod';
-import { RLM } from './src/rlm';
+import { RLM } from '../src/rlm';
 
 const SentimentSchema = z.object({
   score: z.number().int().min(1).max(5),
