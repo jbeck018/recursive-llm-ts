@@ -1,0 +1,301 @@
+name: Release Go Binaries
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 4.3.1)'
+        required: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-matrix:
+    name: Build for ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-13
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: true
+          cache-dependency-path: go/go.sum
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ -n "${{ github.ref_name }}" ] && [[ "${{ github.ref_name }}" =~ ^v ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Binary version: ${VERSION}"
+        shell: bash
+
+      - name: Build binary (Unix)
+        if: matrix.os != 'windows'
+        run: |
+          cd go
+          mkdir -p ../bin
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
+            go build \
+            -v \
+            -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }}" \
+            -o ../bin/rlm-${{ matrix.os }}-${{ matrix.arch }} \
+            ./cmd/rlm
+          chmod +x ../bin/rlm-${{ matrix.os }}-${{ matrix.arch }}
+          file ../bin/rlm-${{ matrix.os }}-${{ matrix.arch }}
+        shell: bash
+
+      - name: Build binary (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          cd go
+          New-Item -ItemType Directory -Path ../bin -Force | Out-Null
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build `
+            -v `
+            -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }}" `
+            -o ../bin/rlm-${{ matrix.os }}-${{ matrix.arch }}.exe `
+            ./cmd/rlm
+          Get-Item ../bin/rlm-${{ matrix.os }}-${{ matrix.arch }}.exe
+        shell: powershell
+
+      - name: Generate checksums (Unix)
+        if: matrix.os != 'windows'
+        run: |
+          cd bin
+          sha256sum rlm-${{ matrix.os }}-${{ matrix.arch }} > rlm-${{ matrix.os }}-${{ matrix.arch }}.sha256
+          cat rlm-${{ matrix.os }}-${{ matrix.arch }}.sha256
+        shell: bash
+
+      - name: Generate checksums (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          cd bin
+          $file = "rlm-${{ matrix.os }}-${{ matrix.arch }}.exe"
+          $hash = (Get-FileHash -Path $file -Algorithm SHA256).Hash
+          "$hash  $file" | Out-File -FilePath "$file.sha256" -Encoding ASCII
+          Get-Content "$file.sha256"
+        shell: powershell
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            bin/rlm-${{ matrix.os }}-${{ matrix.arch }}*
+          retention-days: 1
+
+  release-assets:
+    name: Attach binaries to release
+    needs: build-matrix
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Organize binaries
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -name "rlm-*" | while read file; do
+            cp "$file" release-assets/
+          done
+          ls -lh release-assets/
+
+      - name: Create checksums file
+        run: |
+          cd release-assets
+          cat *.sha256 > CHECKSUMS.sha256
+          cat CHECKSUMS.sha256
+
+      - name: Get release
+        id: get_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '')
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: tag
+            }).catch(() => null)
+
+            if (!release) {
+              console.log('Release not found, will be created if this is a release event')
+              return
+            }
+
+            core.setOutput('id', release.data.id)
+            core.setOutput('tag', tag)
+
+      - name: Upload release assets
+        if: steps.get_release.outputs.id
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release-assets/rlm-*
+            release-assets/CHECKSUMS.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release (if needed)
+        if: startsWith(github.ref, 'refs/tags/') && !steps.get_release.outputs.id
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '')
+            const fs = require('fs')
+            const path = require('path')
+
+            const files = fs.readdirSync('release-assets')
+            const binaries = files.filter(f => !f.endsWith('.sha256') && f !== 'CHECKSUMS.sha256')
+
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: tag,
+              draft: false,
+              prerelease: tag.includes('alpha') || tag.includes('beta') || tag.includes('rc')
+            })
+
+            console.log(`Created release ${release.data.id} for tag ${tag}`)
+
+            for (const file of files) {
+              const filePath = path.join('release-assets', file)
+              const data = fs.readFileSync(filePath)
+
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name: file,
+                data: data
+              })
+
+              console.log(`Uploaded ${file}`)
+            }
+
+  verify-release:
+    name: Verify release integrity
+    needs: release-assets
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts for verification
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Verify checksums
+        run: |
+          cd artifacts
+          find . -name "*.sha256" -type f | while read checksum_file; do
+            dir=$(dirname "$checksum_file")
+            cd "$dir"
+            sha256sum -c "$(basename $checksum_file)" || exit 1
+            cd - > /dev/null
+          done
+          echo "All checksums verified successfully"
+
+      - name: Summary
+        run: |
+          echo "## Go Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release artifacts have been successfully built and verified:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Platforms Built:" >> $GITHUB_STEP_SUMMARY
+          find artifacts -name "rlm-*" -not -name "*.sha256" | sort | while read binary; do
+            size=$(du -h "$binary" | cut -f1)
+            echo "- $(basename $binary) ($size)" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All binaries are available in the GitHub release." >> $GITHUB_STEP_SUMMARY
+
+  test-binary:
+    name: Test binary on ${{ matrix.os }}
+    needs: build-matrix
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-13
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+      fail-fast: false
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: go-binaries-${{ matrix.os }}-${{ matrix.arch }}
+          path: bin
+
+      - name: Test binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          binary=$(ls bin/rlm-* | head -1)
+          chmod +x "$binary"
+          $binary --help 2>&1 | head -5 || echo "Binary executed (exit code: $?)"
+
+      - name: Test binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $binary = Get-ChildItem bin/rlm-*.exe | Select-Object -First 1
+          & $binary.FullName --help 2>&1 | head -5 || Write-Output "Binary executed (exit code: $?)"

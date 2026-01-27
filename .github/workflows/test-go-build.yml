@@ -1,0 +1,158 @@
+name: Test Go Build
+
+on:
+  pull_request:
+    paths:
+      - 'go/**'
+      - '.github/workflows/test-go-build.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'go/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Test build for ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+          - os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          - os: darwin
+            arch: amd64
+            runner: macos-13
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+          - os: windows
+            arch: amd64
+            runner: windows-latest
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: true
+          cache-dependency-path: go/go.sum
+
+      - name: Download dependencies
+        working-directory: go
+        run: go mod download
+
+      - name: Test build (Unix)
+        if: matrix.os != 'windows'
+        working-directory: go
+        run: |
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
+            go build \
+            -v \
+            -ldflags="-s -w -X main.version=test" \
+            -o ../bin/rlm-test-${{ matrix.os }}-${{ matrix.arch }} \
+            ./cmd/rlm
+          file ../bin/rlm-test-${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Test build (Windows)
+        if: matrix.os == 'windows'
+        working-directory: go
+        shell: powershell
+        run: |
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build `
+            -v `
+            -ldflags="-s -w -X main.version=test" `
+            -o ../bin/rlm-test-${{ matrix.os }}-${{ matrix.arch }}.exe `
+            ./cmd/rlm
+          Get-Item ../bin/rlm-test-${{ matrix.os }}-${{ matrix.arch }}.exe
+
+      - name: Run tests
+        working-directory: go
+        run: go test -v ./...
+
+      - name: Build stats (Unix)
+        if: matrix.os != 'windows'
+        run: |
+          binary=$(ls bin/rlm-test-${{ matrix.os }}-${{ matrix.arch }})
+          size=$(du -h "$binary" | cut -f1)
+          echo "Binary: $binary"
+          echo "Size: $size"
+          file "$binary"
+
+      - name: Build stats (Windows)
+        if: matrix.os == 'windows'
+        shell: powershell
+        run: |
+          $binary = Get-ChildItem "bin/rlm-test-${{ matrix.os }}-${{ matrix.arch }}.exe"
+          $size = (Get-Item $binary.FullName).Length
+          Write-Output "Binary: $($binary.Name)"
+          Write-Output "Size: $([math]::Round($size / 1MB, 2))MB"
+
+      - name: Upload test binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-binary-${{ matrix.os }}-${{ matrix.arch }}
+          path: bin/rlm-test-*
+          retention-days: 1
+
+  lint:
+    name: Lint Go code
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          working-directory: go
+          version: latest
+
+  coverage:
+    name: Test coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          cache: true
+          cache-dependency-path: go/go.sum
+
+      - name: Run tests with coverage
+        working-directory: go
+        run: go test -v -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./go/coverage.out
+          flags: go
+          fail_ci_if_error: false
+
+      - name: Display coverage
+        working-directory: go
+        run: go tool cover -func=coverage.out

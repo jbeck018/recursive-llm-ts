@@ -1,4 +1,4 @@
-module recursive-llm-go
+module github.com/jbeck018/recursive-llm-ts/go
 
 go 1.21
 

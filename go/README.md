@@ -1,24 +1,92 @@
-# RLM Go Binary
+# RLM Go Module
 
 Go implementation of Recursive Language Models (RLM) based on the [original Python implementation](https://github.com/alexzhang13/rlm).
 
 ## Overview
 
-This is a self-contained Go binary that implements the RLM algorithm, allowing language models to process extremely long contexts (100k+ tokens) by storing context as a variable and allowing recursive exploration.
+This is both a standalone Go library and CLI binary that implements the RLM algorithm, allowing language models to process extremely long contexts (100k+ tokens) by storing context as a variable and allowing recursive exploration.
 
 **Key Difference from Python**: Uses JavaScript REPL instead of Python REPL for code execution.
 
-## Building
+## Installation
+
+### As a Go Library
+
+```bash
+go get github.com/jbeck018/recursive-llm-ts/go
+```
+
+### Usage as Library
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/jbeck018/recursive-llm-ts/go/rlm"
+)
+
+func main() {
+    config := rlm.Config{
+        MaxDepth:      5,
+        MaxIterations: 30,
+        APIKey:        os.Getenv("OPENAI_API_KEY"),
+    }
+
+    engine := rlm.New("gpt-4o-mini", config)
+
+    answer, stats, err := engine.Completion(
+        "What are the key themes?",
+        "Your long document here...",
+    )
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+
+    fmt.Printf("Answer: %s\n", answer)
+    fmt.Printf("Stats: %d LLM calls, %d iterations\n",
+        stats.LlmCalls, stats.Iterations)
+}
+```
+
+### Structured Output
+
+```go
+schema := &rlm.JSONSchema{
+    Type: "object",
+    Properties: map[string]*rlm.JSONSchema{
+        "summary": {Type: "string"},
+        "score":   {Type: "number"},
+    },
+    Required: []string{"summary", "score"},
+}
+
+config := &rlm.StructuredConfig{
+    Schema:     schema,
+    MaxRetries: 3,
+}
+
+result, stats, err := engine.StructuredCompletion(
+    "Summarize and score",
+    document,
+    config,
+)
+```
+
+## Building the CLI Binary
 
 ```bash
 # Build the binary
-go build -o rlm ./cmd/rlm
+go build -o rlm-go ./cmd/rlm
 
 # Run tests
-go test ./internal/rlm/... -v
+go test ./rlm/... -v
 
 # Build with optimization
-go build -ldflags="-s -w" -o rlm ./cmd/rlm
+go build -ldflags="-s -w" -o rlm-go ./cmd/rlm
 ```
 
 ## Usage
@@ -181,13 +249,16 @@ Works with any OpenAI-compatible API:
 
 ```
 cmd/rlm/main.go              # CLI entry point (JSON I/O)
-internal/rlm/
+rlm/                         # Public package (importable)
+├── doc.go                   # Package documentation
 ├── rlm.go                   # Core RLM logic
 ├── types.go                 # Config and stats types
+├── structured.go            # Structured completion with schema validation
 ├── parser.go                # FINAL() extraction
 ├── prompt.go                # System prompt builder
 ├── repl.go                  # JavaScript REPL (goja)
-└── openai.go                # OpenAI API client
+├── openai.go                # OpenAI API client
+└── errors.go                # Error types
 ```
 
 ## Error Handling
@@ -212,16 +283,16 @@ echo '{
 
 ```bash
 # Run all tests
-go test ./internal/rlm/... -v
+go test ./rlm/... -v
 
 # Run specific test
-go test ./internal/rlm -run TestParser -v
+go test ./rlm -run TestParser -v
 
 # With coverage
-go test ./internal/rlm/... -cover
+go test ./rlm/... -cover
 
 # Benchmark
-go test ./internal/rlm/... -bench=. -benchmem
+go test ./rlm/... -bench=. -benchmem
 ```
 
 ## Performance
@@ -332,7 +403,7 @@ Check the JavaScript syntax. Use `console.log()` not `print()`, or ensure `print
 ## Contributing
 
 1. Write tests for new features
-2. Ensure all tests pass: `go test ./internal/rlm/... -v`
+2. Ensure all tests pass: `go test ./rlm/... -v`
 3. Format code: `go fmt ./...`
 4. Update documentation
 

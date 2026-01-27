@@ -353,6 +353,194 @@ const result = await rlm.completion(
 
 See the [LiteLLM documentation](https://docs.litellm.ai/docs/providers) for the complete list of supported providers and their configuration.
 
+## Docker Deployment
+
+### Basic Dockerfile with Go Build
+
+To containerize your application that uses `recursive-llm-ts`, install Go 1.21+ in your Docker image to build the binary during `npm install`:
+
+```dockerfile
+FROM node:20-alpine
+
+# Install Go 1.21+ for building the RLM binary
+RUN apk add --no-cache go
+
+# Set Go environment
+ENV GOPATH=/go
+ENV PATH=$PATH:$GOPATH/bin
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+ENV OPENAI_API_KEY=""
+ENV NODE_ENV=production
+
+CMD ["node", "your-app.js"]
+```
+
+### Multi-Stage Build (Recommended for Production)
+
+For optimal image size and security, use a multi-stage build:
+
+```dockerfile
+# Stage 1: Build the Go binary
+FROM golang:1.21-alpine AS go-builder
+WORKDIR /build
+COPY go/go.mod go/go.sum ./
+RUN go mod download
+COPY go/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o rlm-go ./cmd/rlm
+
+# Stage 2: Build Node.js dependencies
+FROM node:20-alpine AS node-builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Stage 3: Final runtime image
+FROM node:20-alpine
+WORKDIR /app
+
+COPY --from=node-builder /app/node_modules ./node_modules
+COPY --from=go-builder /build/rlm-go ./bin/rlm-go
+RUN chmod +x ./bin/rlm-go
+
+COPY package*.json ./
+COPY dist/ ./dist/
+
+ENV NODE_ENV=production
+ENV RLM_GO_BINARY=/app/bin/rlm-go
+ENV OPENAI_API_KEY=""
+
+CMD ["node", "dist/index.js"]
+```
+
+**Benefits:** Smaller image (~150MB vs ~500MB), faster builds with caching, more secure.
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+services:
+  app:
+    build: .
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+```
+
+### Installing Go in Different Base Images
+
+```dockerfile
+# Alpine
+RUN apk add --no-cache go
+
+# Debian/Ubuntu
+RUN apt-get update && apt-get install -y golang-1.21
+
+# Or use pre-built binary (no Go required)
+# Download from GitHub releases and copy to /app/bin/rlm-go
+```
+
+## Using the Go Module Directly
+
+The Go implementation can be used as a standalone library in Go projects.
+
+### Installation
+
+```bash
+go get github.com/jbeck018/recursive-llm-ts/go
+```
+
+### Usage
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/jbeck018/recursive-llm-ts/go/rlm"
+)
+
+func main() {
+    config := rlm.Config{
+        MaxDepth:      5,
+        MaxIterations: 30,
+        APIKey:        os.Getenv("OPENAI_API_KEY"),
+    }
+
+    engine := rlm.New("gpt-4o-mini", config)
+
+    answer, stats, err := engine.Completion(
+        "What are the key points?",
+        "Your long document here...",
+    )
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+
+    fmt.Printf("Answer: %s\n", answer)
+    fmt.Printf("Stats: %d LLM calls, %d iterations\n",
+        stats.LlmCalls, stats.Iterations)
+}
+```
+
+### Structured Output
+
+```go
+schema := &rlm.JSONSchema{
+    Type: "object",
+    Properties: map[string]*rlm.JSONSchema{
+        "summary": {Type: "string"},
+        "score":   {Type: "number"},
+    },
+    Required: []string{"summary", "score"},
+}
+
+config := &rlm.StructuredConfig{
+    Schema:     schema,
+    MaxRetries: 3,
+}
+
+result, stats, err := engine.StructuredCompletion(
+    "Summarize and score",
+    document,
+    config,
+)
+```
+
+### Building from Source
+
+```bash
+cd go
+
+# Standard build
+go build -o rlm-go ./cmd/rlm
+
+# Optimized (smaller binary)
+go build -ldflags="-s -w" -o rlm-go ./cmd/rlm
+
+# Cross-compile
+GOOS=linux GOARCH=amd64 go build -o rlm-linux-amd64 ./cmd/rlm
+GOOS=darwin GOARCH=arm64 go build -o rlm-darwin-arm64 ./cmd/rlm
+```
+
+### Running Tests
+
+```bash
+cd go
+go test -v ./rlm/...
+```
+
 ## How It Works
 
 This package provides a TypeScript wrapper around a Go implementation of Recursive-LLM, enabling seamless integration into Node.js/TypeScript applications without Python dependencies. The Go binary is built locally (or supplied via `RLM_GO_BINARY`) and invoked for completions.

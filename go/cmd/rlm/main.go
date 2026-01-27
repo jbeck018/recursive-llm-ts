@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"recursive-llm-go/internal/rlm"
+	"github.com/jbeck018/recursive-llm-ts/go/rlm"
 )
 
 type requestPayload struct {
