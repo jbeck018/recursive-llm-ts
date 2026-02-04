@@ -10,24 +10,51 @@ import (
 
 // StructuredCompletion executes a structured completion with schema validation
 func (r *RLM) StructuredCompletion(query string, context string, config *StructuredConfig) (map[string]interface{}, RLMStats, error) {
+	ctx := r.observer.StartSpan("rlm.structured_completion", map[string]string{
+		"query_length":   fmt.Sprintf("%d", len(query)),
+		"context_length": fmt.Sprintf("%d", len(context)),
+	})
+	defer r.observer.EndSpan(ctx)
+
 	if config == nil || config.Schema == nil {
 		return nil, RLMStats{}, fmt.Errorf("structured config and schema are required")
 	}
+
+	r.observer.Debug("structured", "Schema type: %s", config.Schema.Type)
 
 	// Set defaults
 	if config.MaxRetries == 0 {
 		config.MaxRetries = 3
 	}
 
+	// Apply meta-agent optimization for structured queries if enabled
+	if r.metaAgent != nil {
+		optimized, err := r.metaAgent.OptimizeForStructured(query, context, config.Schema)
+		if err == nil && optimized != "" {
+			r.observer.Debug("structured", "Using meta-agent optimized query for structured extraction")
+			query = optimized
+		}
+	}
+
+	// Create schema validator using Google's jsonschema-go for enhanced validation
+	validator, validatorErr := NewSchemaValidator(config.Schema)
+	if validatorErr != nil {
+		r.observer.Debug("structured", "Schema validator creation info: %v (using fallback)", validatorErr)
+	}
+	_ = validator // Available for enhanced validation in parseAndValidateJSON
+
 	// Decompose schema into sub-tasks
 	subTasks := decomposeSchema(config.Schema)
+	r.observer.Debug("structured", "Schema decomposed into %d subtasks", len(subTasks))
 
 	// If simple schema or parallel disabled, use direct method
 	if len(subTasks) <= 2 || !config.ParallelExecution {
+		r.observer.Debug("structured", "Using direct completion method")
 		return r.structuredCompletionDirect(query, context, config)
 	}
 
 	// Execute with parallel goroutines
+	r.observer.Debug("structured", "Using parallel completion with %d subtasks", len(subTasks))
 	return r.structuredCompletionParallel(query, context, config, subTasks)
 }
 

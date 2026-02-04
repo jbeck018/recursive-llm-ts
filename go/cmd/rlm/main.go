@@ -27,6 +27,7 @@ type responsePayload struct {
 	Result           interface{}  `json:"result"`
 	Stats            rlm.RLMStats `json:"stats"`
 	StructuredResult bool         `json:"structured_result,omitempty"`
+	TraceEvents      interface{}  `json:"trace_events,omitempty"`
 }
 
 func main() {
@@ -49,6 +50,7 @@ func main() {
 
 	config := rlm.ConfigFromMap(req.Config)
 	engine := rlm.New(req.Model, config)
+	defer engine.Shutdown()
 
 	var resp responsePayload
 
@@ -82,6 +84,15 @@ func main() {
 		resp = responsePayload{
 			Result: result,
 			Stats:  stats,
+		}
+	}
+
+	// Include trace events if observability is enabled
+	obs := engine.GetObserver()
+	if obs != nil {
+		events := obs.GetEvents()
+		if len(events) > 0 {
+			resp.TraceEvents = events
 		}
 	}
 
