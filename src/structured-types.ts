@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RLMResult } from './bridge-interface';
+import { TraceEvent } from './bridge-interface';
 
 export interface StructuredRLMResult<T> {
   result: T;
@@ -9,6 +9,7 @@ export interface StructuredRLMResult<T> {
     depth: number;
     parsing_retries?: number;
   };
+  trace_events?: TraceEvent[];
 }
 
 export interface SubTask {

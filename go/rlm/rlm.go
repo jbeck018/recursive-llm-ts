@@ -2,6 +2,7 @@ package rlm
 
 import (
 	"fmt"
+	"time"
 )
 
 type RLM struct {
@@ -17,6 +18,8 @@ type RLM struct {
 	currentDepth     int
 	repl             *REPLExecutor
 	stats            RLMStats
+	observer         *Observer
+	metaAgent        *MetaAgent
 }
 
 func New(model string, config Config) *RLM {
@@ -25,7 +28,15 @@ func New(model string, config Config) *RLM {
 		recursiveModel = model
 	}
 
-	return &RLM{
+	// Setup observer
+	var obs *Observer
+	if config.Observability != nil {
+		obs = NewObserver(*config.Observability)
+	} else {
+		obs = NewNoopObserver()
+	}
+
+	r := &RLM{
 		model:            model,
 		recursiveModel:   recursiveModel,
 		apiBase:          config.APIBase,
@@ -38,10 +49,26 @@ func New(model string, config Config) *RLM {
 		currentDepth:     0,
 		repl:             NewREPLExecutor(),
 		stats:            RLMStats{},
+		observer:         obs,
 	}
+
+	// Setup meta-agent if enabled
+	if config.MetaAgent != nil && config.MetaAgent.Enabled {
+		r.metaAgent = NewMetaAgent(r, *config.MetaAgent, obs)
+	}
+
+	return r
 }
 
 func (r *RLM) Completion(query string, context string) (string, RLMStats, error) {
+	ctx := r.observer.StartTrace("rlm.completion", map[string]string{
+		"model":          r.model,
+		"query_length":   fmt.Sprintf("%d", len(query)),
+		"context_length": fmt.Sprintf("%d", len(context)),
+		"depth":          fmt.Sprintf("%d", r.currentDepth),
+	})
+	defer r.observer.EndTrace(ctx)
+
 	if query != "" && context == "" {
 		context = query
 		query = ""
@@ -49,6 +76,15 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 
 	if r.currentDepth >= r.maxDepth {
 		return "", r.stats, NewMaxDepthError(r.maxDepth)
+	}
+
+	// Apply meta-agent optimization if enabled
+	if r.metaAgent != nil && r.currentDepth == 0 {
+		optimized, err := r.metaAgent.OptimizeQuery(query, context)
+		if err == nil && optimized != "" {
+			r.observer.Debug("rlm", "Using meta-agent optimized query")
+			query = optimized
+		}
 	}
 
 	r.stats.Depth = r.currentDepth
@@ -61,22 +97,32 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 
 	for iteration := 0; iteration < r.maxIterations; iteration++ {
 		r.stats.Iterations = iteration + 1
+		r.observer.Debug("rlm", "Iteration %d/%d at depth %d", iteration+1, r.maxIterations, r.currentDepth)
 
 		response, err := r.callLLM(messages)
 		if err != nil {
+			r.observer.Error("rlm", "LLM call failed on iteration %d: %v", iteration+1, err)
 			return "", r.stats, err
 		}
 
 		if IsFinal(response) {
 			answer, ok := ParseResponse(response, replEnv)
 			if ok {
+				r.observer.Debug("rlm", "FINAL answer found on iteration %d", iteration+1)
+				r.observer.Event("rlm.completion_success", map[string]string{
+					"iterations": fmt.Sprintf("%d", iteration+1),
+					"llm_calls":  fmt.Sprintf("%d", r.stats.LlmCalls),
+				})
 				return answer, r.stats, nil
 			}
 		}
 
 		execResult, err := r.repl.Execute(response, replEnv)
 		if err != nil {
+			r.observer.Debug("rlm", "REPL execution error: %v", err)
 			execResult = fmt.Sprintf("Error: %s", err.Error())
+		} else {
+			r.observer.Debug("rlm", "REPL output: %s", truncateStr(execResult, 200))
 		}
 
 		messages = append(messages, Message{Role: "assistant", Content: response})
@@ -93,6 +139,10 @@ func (r *RLM) callLLM(messages []Message) (string, error) {
 		defaultModel = r.recursiveModel
 	}
 
+	r.observer.Debug("llm", "Calling %s with %d messages", defaultModel, len(messages))
+
+	start := time.Now()
+
 	request := ChatRequest{
 		Model:       defaultModel,
 		Messages:    messages,
@@ -102,7 +152,17 @@ func (r *RLM) callLLM(messages []Message) (string, error) {
 		ExtraParams: r.extraParams,
 	}
 
-	return CallChatCompletion(request)
+	result, err := CallChatCompletion(request)
+	duration := time.Since(start)
+
+	r.observer.LLMCall(defaultModel, len(messages), 0, duration, err)
+
+	if err != nil {
+		return "", err
+	}
+
+	r.observer.Debug("llm", "Response received (%d chars) in %s", len(result), duration)
+	return result, nil
 }
 
 func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} {
@@ -117,6 +177,8 @@ func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} 
 			return fmt.Sprintf("Max recursion depth (%d) reached", r.maxDepth)
 		}
 
+		r.observer.Debug("rlm", "Recursive call at depth %d: %s", r.currentDepth+1, truncateStr(subQuery, 100))
+
 		subConfig := Config{
 			RecursiveModel:   r.recursiveModel,
 			APIBase:          r.apiBase,
@@ -130,6 +192,7 @@ func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} 
 
 		subRLM := New(r.recursiveModel, subConfig)
 		subRLM.currentDepth = r.currentDepth + 1
+		subRLM.observer = r.observer // Share observer for trace continuity
 
 		answer, _, err := subRLM.Completion(subQuery, subContext)
 		if err != nil {
@@ -139,4 +202,16 @@ func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} 
 	}
 
 	return env
+}
+
+// GetObserver returns the observer for external access to events/traces.
+func (r *RLM) GetObserver() *Observer {
+	return r.observer
+}
+
+// Shutdown gracefully shuts down the RLM engine and its observer.
+func (r *RLM) Shutdown() {
+	if r.observer != nil {
+		r.observer.Shutdown()
+	}
 }

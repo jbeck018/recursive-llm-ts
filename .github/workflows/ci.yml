@@ -7,35 +7,74 @@ on:
     branches: [ main, develop ]
 
 jobs:
-  build-and-test:
+  go-test:
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        node-version: [18.x, 20.x]
-    
+        go-version: ['1.25.x']
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
-      
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: go/go.sum
+
+      - name: Run Go tests
+        working-directory: go
+        run: go test ./rlm/... -v
+
+      - name: Run Go linting
+        if: matrix.os == 'ubuntu-latest'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          working-directory: go
+          install-mode: goinstall
+          version: v1.64.8
+
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    needs: go-test
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-      
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: go/go.sum
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Build package
         run: npm run build
-      
+
       - name: Run tests
         run: npm test || echo "No tests configured"
         continue-on-error: true
-      
+
       - name: Check package
         run: npm pack --dry-run

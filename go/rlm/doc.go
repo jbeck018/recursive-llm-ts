@@ -25,9 +25,79 @@
 //	engine := rlm.New("gpt-4", config)
 //	answer, stats, err := engine.Completion("What is 2+2?", "")
 //
+// # Meta-Agent Mode
+//
+// The meta-agent optimizes queries before they reach the RLM engine. Short or
+// vague queries are automatically rewritten for better recursive processing:
+//
+//	config := rlm.Config{
+//	    APIKey: os.Getenv("OPENAI_API_KEY"),
+//	    MetaAgent: &rlm.MetaAgentConfig{
+//	        Enabled: true,
+//	        Model:   "gpt-4o-mini", // optional, defaults to engine model
+//	    },
+//	}
+//
+//	engine := rlm.New("gpt-4o", config)
+//	// "summarize this" becomes a detailed, optimized query
+//	answer, stats, err := engine.Completion("summarize this", longDocument)
+//
+// For structured queries, the meta-agent references schema fields explicitly:
+//
+//	result, stats, err := engine.StructuredCompletion(
+//	    "get info",
+//	    context,
+//	    &rlm.StructuredConfig{Schema: schema},
+//	)
+//
+// # Observability
+//
+// RLM provides built-in observability via OpenTelemetry tracing, Langfuse
+// integration, and debug logging. All internal operations (LLM calls, REPL
+// execution, meta-agent optimization, validation) emit trace events.
+//
+// Debug mode logs all operations:
+//
+//	config := rlm.Config{
+//	    APIKey: os.Getenv("OPENAI_API_KEY"),
+//	    Observability: &rlm.ObservabilityConfig{
+//	        Debug: true,
+//	        LogOutput: "stderr", // or "stdout", or a file path
+//	    },
+//	}
+//
+// OpenTelemetry tracing:
+//
+//	config := rlm.Config{
+//	    APIKey: os.Getenv("OPENAI_API_KEY"),
+//	    Observability: &rlm.ObservabilityConfig{
+//	        TraceEnabled:  true,
+//	        TraceEndpoint: "http://localhost:4318",
+//	        ServiceName:   "my-rlm-service",
+//	    },
+//	}
+//
+// Langfuse integration:
+//
+//	config := rlm.Config{
+//	    APIKey: os.Getenv("OPENAI_API_KEY"),
+//	    Observability: &rlm.ObservabilityConfig{
+//	        LangfuseEnabled:   true,
+//	        LangfusePublicKey: os.Getenv("LANGFUSE_PUBLIC_KEY"),
+//	        LangfuseSecretKey: os.Getenv("LANGFUSE_SECRET_KEY"),
+//	        LangfuseHost:      "https://cloud.langfuse.com",
+//	    },
+//	}
+//
+// Trace events are accessible after completion via the Observer:
+//
+//	obs := engine.GetObserver()
+//	events := obs.Events()
+//	defer engine.Shutdown() // flush OTEL spans
+//
 // # Structured Output
 //
-// For structured JSON output with validation:
+// For structured JSON output with schema validation using Google jsonschema-go:
 //
 //	schema := &rlm.JSONSchema{
 //	    Type: "object",
