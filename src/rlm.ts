@@ -1,4 +1,4 @@
-import { RLMConfig, RLMResult } from './bridge-interface';
+import { RLMConfig, RLMResult, TraceEvent } from './bridge-interface';
 import { createBridge, BridgeType } from './bridge-factory';
 import { PythonBridge } from './bridge-interface';
 import { z } from 'zod';
@@ -9,11 +9,22 @@ export class RLM {
   private model: string;
   private rlmConfig: RLMConfig;
   private bridgeType: BridgeType;
+  private lastTraceEvents: TraceEvent[] = [];
 
   constructor(model: string, rlmConfig: RLMConfig = {}, bridgeType: BridgeType = 'auto') {
     this.model = model;
-    this.rlmConfig = rlmConfig;
+    this.rlmConfig = this.normalizeConfig(rlmConfig);
     this.bridgeType = bridgeType;
+  }
+
+  private normalizeConfig(config: RLMConfig): RLMConfig {
+    // Normalize debug shorthand into observability config
+    if (config.debug && !config.observability) {
+      config.observability = { debug: true };
+    } else if (config.debug && config.observability) {
+      config.observability.debug = true;
+    }
+    return config;
   }
 
   private async ensureBridge(): Promise<PythonBridge> {
@@ -25,7 +36,11 @@ export class RLM {
 
   public async completion(query: string, context: string): Promise<RLMResult> {
     const bridge = await this.ensureBridge();
-    return bridge.completion(this.model, query, context, this.rlmConfig);
+    const result = await bridge.completion(this.model, query, context, this.rlmConfig);
+    if (result.trace_events) {
+      this.lastTraceEvents = result.trace_events;
+    }
+    return result;
   }
 
   public async structuredCompletion<T>(
@@ -36,27 +51,40 @@ export class RLM {
   ): Promise<StructuredRLMResult<T>> {
     const bridge = await this.ensureBridge();
     const jsonSchema = this.zodToJsonSchema(schema);
-    
+
     const structuredConfig = {
       schema: jsonSchema,
       parallelExecution: options.parallelExecution ?? true,
       maxRetries: options.maxRetries ?? 3
     };
-    
+
     const result = await bridge.completion(
       this.model,
       query,
       context,
       { ...this.rlmConfig, structured: structuredConfig }
     );
-    
+
+    if (result.trace_events) {
+      this.lastTraceEvents = result.trace_events;
+    }
+
     // Validate result against Zod schema for type safety
     const validated = schema.parse(result.result);
-    
+
     return {
       result: validated,
-      stats: result.stats
+      stats: result.stats,
+      trace_events: result.trace_events
     };
+  }
+
+  /**
+   * Returns trace events from the last operation.
+   * Only populated when observability is enabled in the config.
+   */
+  public getTraceEvents(): TraceEvent[] {
+    return this.lastTraceEvents;
   }
 
   private zodToJsonSchema(schema: z.ZodSchema<any>): any {

@@ -64,6 +64,8 @@ type Config struct {
 	UseMetacognitive  bool // Enable step-by-step reasoning guidance in prompts
 	Structured        *StructuredConfig
 	ExtraParams       map[string]interface{}
+	MetaAgent         *MetaAgentConfig
+	Observability     *ObservabilityConfig
 }
 
 func ConfigFromMap(config map[string]interface{}) Config {
@@ -75,6 +77,28 @@ func ConfigFromMap(config map[string]interface{}) Config {
 
 	if config == nil {
 		return parsed
+	}
+
+	// Extract observability config first
+	obsConfigMap := ExtractObservabilityConfig(config)
+	if len(obsConfigMap) > 0 {
+		obsConfig := ObservabilityConfigFromMap(obsConfigMap)
+		parsed.Observability = &obsConfig
+	}
+
+	// Extract meta-agent config
+	if maConfig, ok := config["meta_agent"].(map[string]interface{}); ok {
+		ma := &MetaAgentConfig{}
+		if v, ok := maConfig["enabled"].(bool); ok {
+			ma.Enabled = v
+		}
+		if v, ok := maConfig["model"].(string); ok {
+			ma.Model = v
+		}
+		if v, ok := toInt(maConfig["max_optimize_len"]); ok {
+			ma.MaxOptimizeLen = v
+		}
+		parsed.MetaAgent = ma
 	}
 
 	for key, value := range config {
@@ -105,8 +129,12 @@ func ConfigFromMap(config map[string]interface{}) Config {
 			if v, ok := value.(bool); ok {
 				parsed.UseMetacognitive = v
 			}
-		case "pythonia_timeout", "go_binary_path", "bridge", "structured":
-			// ignore bridge-only config and structured (handled separately)
+		case "pythonia_timeout", "go_binary_path", "bridge", "structured",
+			"meta_agent", "observability", "debug", "trace_enabled",
+			"trace_endpoint", "service_name", "log_output",
+			"langfuse_enabled", "langfuse_public_key",
+			"langfuse_secret_key", "langfuse_host":
+			// ignore bridge-only config, meta_agent, observability (handled above/separately)
 		default:
 			parsed.ExtraParams[key] = value
 		}

@@ -105,7 +105,7 @@ cat <<'INSTRUCTIONS'
    - Update default bridge to Go
    
    Breaking changes:
-   - Requires Go 1.21+ for building from source
+   - Requires Go 1.25+ for building from source
    - No longer requires Python runtime
    
    Performance improvements:

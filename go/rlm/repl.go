@@ -29,7 +29,9 @@ func (r *REPLExecutor) Execute(code string, env map[string]interface{}) (string,
 	var output strings.Builder
 
 	for key, value := range env {
-		vm.Set(key, value)
+		if err := vm.Set(key, value); err != nil {
+			return "", fmt.Errorf("failed to set environment variable %s: %w", key, err)
+		}
 	}
 
 	writeOutput := func(call goja.FunctionCall) goja.Value {
@@ -46,9 +48,13 @@ func (r *REPLExecutor) Execute(code string, env map[string]interface{}) (string,
 		"log": writeOutput,
 	}
 
-	vm.Set("console", console)
-	vm.Set("print", writeOutput)
-	vm.Set("len", func(value goja.Value) int {
+	if err := vm.Set("console", console); err != nil {
+		return "", fmt.Errorf("failed to set console: %w", err)
+	}
+	if err := vm.Set("print", writeOutput); err != nil {
+		return "", fmt.Errorf("failed to set print: %w", err)
+	}
+	if err := vm.Set("len", func(value goja.Value) int {
 		if value == nil || value == goja.Undefined() || value == goja.Null() {
 			return 0
 		}
@@ -63,7 +69,9 @@ func (r *REPLExecutor) Execute(code string, env map[string]interface{}) (string,
 			}
 		}
 		return len(value.String())
-	})
+	}); err != nil {
+		return "", fmt.Errorf("failed to set len: %w", err)
+	}
 
 	if _, err := vm.RunString(jsBootstrap); err != nil {
 		return "", NewREPLError("Bootstrap execution error", jsBootstrap, err)

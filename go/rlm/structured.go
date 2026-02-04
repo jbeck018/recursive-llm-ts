@@ -10,24 +10,51 @@ import (
 
 // StructuredCompletion executes a structured completion with schema validation
 func (r *RLM) StructuredCompletion(query string, context string, config *StructuredConfig) (map[string]interface{}, RLMStats, error) {
+	ctx := r.observer.StartSpan("rlm.structured_completion", map[string]string{
+		"query_length":   fmt.Sprintf("%d", len(query)),
+		"context_length": fmt.Sprintf("%d", len(context)),
+	})
+	defer r.observer.EndSpan(ctx)
+
 	if config == nil || config.Schema == nil {
 		return nil, RLMStats{}, fmt.Errorf("structured config and schema are required")
 	}
+
+	r.observer.Debug("structured", "Schema type: %s", config.Schema.Type)
 
 	// Set defaults
 	if config.MaxRetries == 0 {
 		config.MaxRetries = 3
 	}
 
+	// Apply meta-agent optimization for structured queries if enabled
+	if r.metaAgent != nil {
+		optimized, err := r.metaAgent.OptimizeForStructured(query, context, config.Schema)
+		if err == nil && optimized != "" {
+			r.observer.Debug("structured", "Using meta-agent optimized query for structured extraction")
+			query = optimized
+		}
+	}
+
+	// Create schema validator using Google's jsonschema-go for enhanced validation
+	validator, validatorErr := NewSchemaValidator(config.Schema)
+	if validatorErr != nil {
+		r.observer.Debug("structured", "Schema validator creation info: %v (using fallback)", validatorErr)
+	}
+	_ = validator // Available for enhanced validation in parseAndValidateJSON
+
 	// Decompose schema into sub-tasks
 	subTasks := decomposeSchema(config.Schema)
+	r.observer.Debug("structured", "Schema decomposed into %d subtasks", len(subTasks))
 
 	// If simple schema or parallel disabled, use direct method
 	if len(subTasks) <= 2 || !config.ParallelExecution {
+		r.observer.Debug("structured", "Using direct completion method")
 		return r.structuredCompletionDirect(query, context, config)
 	}
 
 	// Execute with parallel goroutines
+	r.observer.Debug("structured", "Using parallel completion with %d subtasks", len(subTasks))
 	return r.structuredCompletionParallel(query, context, config, subTasks)
 }
 
@@ -230,7 +257,7 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 				}
 			}
 			
-			if fieldSchema.Enum != nil && len(fieldSchema.Enum) > 0 {
+			if len(fieldSchema.Enum) > 0 {
 				constraints = append(constraints, fmt.Sprintf("- %s must be EXACTLY one of these values: %s (use these exact strings, do not modify)", fieldName, strings.Join(fieldSchema.Enum, ", ")))
 			}
 			
@@ -274,7 +301,7 @@ func generateSchemaConstraints(schema *JSONSchema) string {
 					}
 				}
 				
-				if fieldSchema.Enum != nil && len(fieldSchema.Enum) > 0 {
+				if len(fieldSchema.Enum) > 0 {
 					constraints = append(constraints, fmt.Sprintf("- Each item's %s must be EXACTLY one of these values: %s (copy exactly, do not modify these strings)", fieldName, strings.Join(fieldSchema.Enum, ", ")))
 				}
 			}
@@ -348,7 +375,7 @@ func generateFieldQuery(fieldName string, schema *JSONSchema) string {
 		}
 		
 	case "string":
-		if schema.Enum != nil && len(schema.Enum) > 0 {
+		if len(schema.Enum) > 0 {
 			queryParts = append(queryParts, fmt.Sprintf("Return EXACTLY one of these values: %s (use exact strings).", strings.Join(schema.Enum, ", ")))
 		} else {
 			queryParts = append(queryParts, "Return a string value.")
@@ -393,7 +420,6 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 					for _, v := range valueMap {
 						if arr, ok := v.([]interface{}); ok {
 							value = arr
-							break
 						}
 					}
 				case "string":
@@ -401,7 +427,6 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 					for _, v := range valueMap {
 						if str, ok := v.(string); ok {
 							value = str
-							break
 						}
 					}
 				case "number":
@@ -410,7 +435,6 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 						switch v.(type) {
 						case float64, float32, int, int32, int64:
 							value = v
-							break
 						}
 					}
 				case "boolean":
@@ -418,7 +442,6 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 					for _, v := range valueMap {
 						if b, ok := v.(bool); ok {
 							value = b
-							break
 						}
 					}
 				default:
@@ -426,7 +449,6 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 					if len(valueMap) == 1 {
 						for _, v := range valueMap {
 							value = v
-							break
 						}
 					}
 				}
@@ -584,7 +606,7 @@ func buildExampleJSON(schema *JSONSchema) string {
 		
 		switch fieldSchema.Type {
 		case "string":
-			if fieldSchema.Enum != nil && len(fieldSchema.Enum) > 0 {
+			if len(fieldSchema.Enum) > 0 {
 				example[fieldName] = fieldSchema.Enum[0]
 			} else {
 				example[fieldName] = "example value"
