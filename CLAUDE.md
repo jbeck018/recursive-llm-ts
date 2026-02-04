@@ -148,6 +148,6 @@ Optional: `AZURE_API_KEY`, `RLM_GO_BINARY`, `RLM_DEBUG`, `OTEL_EXPORTER_OTLP_END
 
 ## CI/CD
 
-- `.github/workflows/ci.yml` - Matrix test (Ubuntu/macOS/Windows x Node 18/20)
+- `.github/workflows/ci.yml` - Go tests + linting, then Node.js matrix (Ubuntu/macOS/Windows x Node 18/20)
 - `.github/workflows/go-release.yml` - Cross-platform binary builds on tag push
 - `.github/workflows/publish.yml` - NPM publish on release

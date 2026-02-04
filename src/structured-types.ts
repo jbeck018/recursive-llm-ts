@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RLMResult, TraceEvent } from './bridge-interface';
+import { TraceEvent } from './bridge-interface';
 
 export interface StructuredRLMResult<T> {
   result: T;
