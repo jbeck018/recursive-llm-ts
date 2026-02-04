@@ -25,7 +25,7 @@ npm install recursive-llm-ts
 ### Prerequisites
 
 - **Node.js 16+** or **Bun 1.0+**
-- **Go 1.21+** (for building from source during install)
+- **Go 1.25+** (for building from source during install)
 
 > **Note**: The package includes pre-built binaries for common platforms. Go is only needed if building from source.
 
@@ -514,12 +514,12 @@ See the [LiteLLM documentation](https://docs.litellm.ai/docs/providers) for the 
 
 ### Basic Dockerfile with Go Build
 
-To containerize your application that uses `recursive-llm-ts`, install Go 1.21+ in your Docker image to build the binary during `npm install`:
+To containerize your application that uses `recursive-llm-ts`, install Go 1.25+ in your Docker image to build the binary during `npm install`:
 
 ```dockerfile
 FROM node:20-alpine
 
-# Install Go 1.21+ for building the RLM binary
+# Install Go 1.25+ for building the RLM binary
 RUN apk add --no-cache go
 
 # Set Go environment
@@ -545,7 +545,7 @@ For optimal image size and security, use a multi-stage build:
 
 ```dockerfile
 # Stage 1: Build the Go binary
-FROM golang:1.21-alpine AS go-builder
+FROM golang:1.25-alpine AS go-builder
 WORKDIR /build
 COPY go/go.mod go/go.sum ./
 RUN go mod download
@@ -599,7 +599,7 @@ services:
 RUN apk add --no-cache go
 
 # Debian/Ubuntu
-RUN apt-get update && apt-get install -y golang-1.21
+RUN apt-get update && apt-get install -y golang-1.25
 
 # Or use pre-built binary (no Go required)
 # Download from GitHub releases and copy to /app/bin/rlm-go

@@ -25,7 +25,7 @@ if (!fs.existsSync(goRoot)) {
 
 if (!goAvailable()) {
   console.warn('[recursive-llm-ts] Go is not installed; skipping Go binary build');
-  console.warn('[recursive-llm-ts] Install Go 1.21+ and rerun: node scripts/build-go-binary.js');
+  console.warn('[recursive-llm-ts] Install Go 1.25+ and rerun: node scripts/build-go-binary.js');
   process.exit(0);
 }
 
