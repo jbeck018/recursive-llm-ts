@@ -62,6 +62,33 @@ export interface RLMConfig {
   [key: string]: any;
 }
 
+export interface FileStorageConfig {
+  /** Storage type: 'local' or 's3' */
+  type: 'local' | 's3';
+  /** For local: root directory path. For S3: bucket name */
+  path: string;
+  /** For S3: the prefix (folder path) within the bucket */
+  prefix?: string;
+  /** For S3: AWS region */
+  region?: string;
+  /** For S3: explicit credentials */
+  credentials?: { accessKeyId: string; secretAccessKey: string; sessionToken?: string };
+  /** For S3: custom endpoint URL (e.g. for MinIO, LocalStack) */
+  endpoint?: string;
+  /** Glob patterns to include (e.g. ['*.ts', '*.md']) */
+  includePatterns?: string[];
+  /** Glob patterns to exclude (e.g. ['node_modules/**']) */
+  excludePatterns?: string[];
+  /** Maximum file size in bytes to include (default: 1MB) */
+  maxFileSize?: number;
+  /** Maximum total context size in bytes (default: 10MB) */
+  maxTotalSize?: number;
+  /** Maximum number of files to include (default: 1000) */
+  maxFiles?: number;
+  /** File extensions to include (e.g. ['.ts', '.md', '.txt']) */
+  extensions?: string[];
+}
+
 export interface PythonBridge {
   completion(
     model: string,

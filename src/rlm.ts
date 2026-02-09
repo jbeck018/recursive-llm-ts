@@ -1,8 +1,9 @@
-import { RLMConfig, RLMResult, TraceEvent } from './bridge-interface';
+import { RLMConfig, RLMResult, TraceEvent, FileStorageConfig } from './bridge-interface';
 import { createBridge, BridgeType } from './bridge-factory';
 import { PythonBridge } from './bridge-interface';
 import { z } from 'zod';
 import { StructuredRLMResult } from './structured-types';
+import { FileContextBuilder, FileStorageResult } from './file-storage';
 
 export class RLM {
   private bridge: PythonBridge | null = null;
@@ -473,6 +474,61 @@ export class RLM {
   
   private escapeRegex(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Run a completion using files from a folder (local or S3) as context.
+   * The folder is read recursively, files are filtered and concatenated
+   * into a structured context string that the LLM can work through.
+   */
+  public async completionFromFiles(
+    query: string,
+    fileConfig: FileStorageConfig
+  ): Promise<RLMResult & { fileStorage: FileStorageResult }> {
+    const builder = new FileContextBuilder(fileConfig);
+    const storageResult = await builder.buildContext();
+    const result = await this.completion(query, storageResult.context);
+    return { ...result, fileStorage: storageResult };
+  }
+
+  /**
+   * Run a structured completion using files from a folder (local or S3) as context.
+   * The folder is read recursively, files are filtered and concatenated
+   * into a structured context string that the LLM can work through.
+   */
+  public async structuredCompletionFromFiles<T>(
+    query: string,
+    fileConfig: FileStorageConfig,
+    schema: z.ZodSchema<T>,
+    options: { maxRetries?: number; parallelExecution?: boolean } = {}
+  ): Promise<StructuredRLMResult<T> & { fileStorage: FileStorageResult }> {
+    const builder = new FileContextBuilder(fileConfig);
+    const storageResult = await builder.buildContext();
+    const result: StructuredRLMResult<T> = await this.structuredCompletion(query, storageResult.context, schema, options);
+    return {
+      result: result.result,
+      stats: result.stats,
+      trace_events: result.trace_events,
+      fileStorage: storageResult,
+    };
+  }
+
+  /**
+   * Preview which files would be included from a file storage config
+   * without actually reading them. Useful for dry-runs.
+   */
+  public async previewFiles(fileConfig: FileStorageConfig): Promise<string[]> {
+    const builder = new FileContextBuilder(fileConfig);
+    return builder.listMatchingFiles();
+  }
+
+  /**
+   * Build context from a file storage config without running a completion.
+   * Useful for inspecting the generated context string.
+   */
+  public async buildFileContext(fileConfig: FileStorageConfig): Promise<FileStorageResult> {
+    const builder = new FileContextBuilder(fileConfig);
+    return builder.buildContext();
   }
 
   public async cleanup(): Promise<void> {
