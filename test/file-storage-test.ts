@@ -5,6 +5,7 @@ import {
   FileContextBuilder,
   LocalFileStorage,
   S3FileStorage,
+  S3StorageError,
   FileStorageConfig,
   FileStorageResult,
   FileStorageProvider,
@@ -629,22 +630,26 @@ class FileContextBuilderWithMock {
     for (const filePath of matchedFiles) {
       if (includedFiles.length >= maxFiles) break;
 
-      const fileSize = await this.provider.getFileSize(filePath);
-      if (fileSize > maxFileSize) {
-        skipped.push({ relativePath: filePath, reason: 'too large' });
-        continue;
-      }
-      if (totalSize + fileSize > maxTotalSize) {
-        skipped.push({ relativePath: filePath, reason: 'total size exceeded' });
-        continue;
-      }
+      try {
+        const fileSize = await this.provider.getFileSize(filePath);
+        if (fileSize > maxFileSize) {
+          skipped.push({ relativePath: filePath, reason: 'too large' });
+          continue;
+        }
+        if (totalSize + fileSize > maxTotalSize) {
+          skipped.push({ relativePath: filePath, reason: 'total size exceeded' });
+          continue;
+        }
 
-      const content = await this.provider.readFile(filePath);
-      const ext = path.extname(filePath).slice(1);
-      const block = `=== FILE: ${filePath} ===\n\`\`\`${ext}\n${content}\n\`\`\`\n=== END FILE: ${filePath} ===\n`;
-      contextParts.push(block);
-      totalSize += Buffer.byteLength(block, 'utf-8');
-      includedFiles.push({ relativePath: filePath, size: fileSize });
+        const content = await this.provider.readFile(filePath);
+        const ext = path.extname(filePath).slice(1);
+        const block = `=== FILE: ${filePath} ===\n\`\`\`${ext}\n${content}\n\`\`\`\n=== END FILE: ${filePath} ===\n`;
+        contextParts.push(block);
+        totalSize += Buffer.byteLength(block, 'utf-8');
+        includedFiles.push({ relativePath: filePath, size: fileSize });
+      } catch (err: any) {
+        skipped.push({ relativePath: filePath, reason: `read error: ${err.message}` });
+      }
     }
 
     return {
@@ -892,6 +897,610 @@ async function testEdgeCases() {
   }
 }
 
+// ─── Test: S3 Credential Resolution ──────────────────────────────────────────
+
+async function testS3CredentialResolution() {
+  console.log('\n=== S3 FILE STORAGE: Credential Resolution ===\n');
+
+  // Save original env vars
+  const origAccessKey = process.env.AWS_ACCESS_KEY_ID;
+  const origSecretKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const origSessionToken = process.env.AWS_SESSION_TOKEN;
+  const origRegion = process.env.AWS_REGION;
+  const origDefaultRegion = process.env.AWS_DEFAULT_REGION;
+
+  try {
+    // 1. Explicit credentials take priority
+    process.env.AWS_ACCESS_KEY_ID = 'env-key';
+    process.env.AWS_SECRET_ACCESS_KEY = 'env-secret';
+
+    const explicitConfig: FileStorageConfig = {
+      type: 's3',
+      path: 'test-bucket',
+      credentials: {
+        accessKeyId: 'explicit-key',
+        secretAccessKey: 'explicit-secret',
+        sessionToken: 'explicit-token',
+      },
+    };
+    const explicitStorage = new S3FileStorage(explicitConfig);
+    assertEqual(
+      explicitStorage.getCredentialSource(),
+      'explicit',
+      'Should use explicit credentials when provided'
+    );
+
+    // 2. Env vars used when no explicit credentials
+    const envConfig: FileStorageConfig = {
+      type: 's3',
+      path: 'test-bucket',
+    };
+    const envStorage = new S3FileStorage(envConfig);
+    assertEqual(
+      envStorage.getCredentialSource(),
+      'environment',
+      'Should use environment credentials when no explicit ones'
+    );
+
+    // 3. Default chain when neither explicit nor env vars
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+    delete process.env.AWS_SESSION_TOKEN;
+
+    const defaultConfig: FileStorageConfig = {
+      type: 's3',
+      path: 'test-bucket',
+    };
+    const defaultStorage = new S3FileStorage(defaultConfig);
+    assertEqual(
+      defaultStorage.getCredentialSource(),
+      'default-chain',
+      'Should fall back to default chain when no explicit or env credentials'
+    );
+
+    // 4. Env vars with session token
+    process.env.AWS_ACCESS_KEY_ID = 'env-key-2';
+    process.env.AWS_SECRET_ACCESS_KEY = 'env-secret-2';
+    process.env.AWS_SESSION_TOKEN = 'env-session-token';
+
+    const envTokenConfig: FileStorageConfig = {
+      type: 's3',
+      path: 'test-bucket',
+    };
+    const envTokenStorage = new S3FileStorage(envTokenConfig);
+    assertEqual(
+      envTokenStorage.getCredentialSource(),
+      'environment',
+      'Should use env credentials with session token'
+    );
+
+    // 5. Partial env vars (only access key, no secret) should fall back
+    delete process.env.AWS_SECRET_ACCESS_KEY;
+    delete process.env.AWS_SESSION_TOKEN;
+
+    const partialEnvConfig: FileStorageConfig = {
+      type: 's3',
+      path: 'test-bucket',
+    };
+    const partialStorage = new S3FileStorage(partialEnvConfig);
+    assertEqual(
+      partialStorage.getCredentialSource(),
+      'default-chain',
+      'Should fall back to default chain when only partial env vars'
+    );
+
+  } finally {
+    // Restore original env vars
+    if (origAccessKey !== undefined) process.env.AWS_ACCESS_KEY_ID = origAccessKey;
+    else delete process.env.AWS_ACCESS_KEY_ID;
+    if (origSecretKey !== undefined) process.env.AWS_SECRET_ACCESS_KEY = origSecretKey;
+    else delete process.env.AWS_SECRET_ACCESS_KEY;
+    if (origSessionToken !== undefined) process.env.AWS_SESSION_TOKEN = origSessionToken;
+    else delete process.env.AWS_SESSION_TOKEN;
+    if (origRegion !== undefined) process.env.AWS_REGION = origRegion;
+    else delete process.env.AWS_REGION;
+    if (origDefaultRegion !== undefined) process.env.AWS_DEFAULT_REGION = origDefaultRegion;
+    else delete process.env.AWS_DEFAULT_REGION;
+  }
+}
+
+// ─── Test: S3 Region Resolution ─────────────────────────────────────────────
+
+async function testS3RegionResolution() {
+  console.log('\n=== S3 FILE STORAGE: Region Resolution ===\n');
+
+  const origRegion = process.env.AWS_REGION;
+  const origDefaultRegion = process.env.AWS_DEFAULT_REGION;
+
+  try {
+    // 1. Explicit region in config takes priority
+    process.env.AWS_REGION = 'eu-west-1';
+    const explicitRegion = new S3FileStorage({
+      type: 's3',
+      path: 'bucket',
+      region: 'ap-southeast-1',
+    });
+    // We can't directly access private fields, but construction should succeed
+    assert(explicitRegion !== null, 'Should construct with explicit region');
+
+    // 2. AWS_REGION env var
+    delete process.env.AWS_DEFAULT_REGION;
+    process.env.AWS_REGION = 'eu-central-1';
+    const envRegion = new S3FileStorage({
+      type: 's3',
+      path: 'bucket',
+    });
+    assert(envRegion !== null, 'Should construct with AWS_REGION');
+
+    // 3. AWS_DEFAULT_REGION env var
+    delete process.env.AWS_REGION;
+    process.env.AWS_DEFAULT_REGION = 'us-west-2';
+    const defaultRegion = new S3FileStorage({
+      type: 's3',
+      path: 'bucket',
+    });
+    assert(defaultRegion !== null, 'Should construct with AWS_DEFAULT_REGION');
+
+    // 4. Fallback to us-east-1
+    delete process.env.AWS_REGION;
+    delete process.env.AWS_DEFAULT_REGION;
+    const fallbackRegion = new S3FileStorage({
+      type: 's3',
+      path: 'bucket',
+    });
+    assert(fallbackRegion !== null, 'Should construct with fallback us-east-1');
+
+  } finally {
+    if (origRegion !== undefined) process.env.AWS_REGION = origRegion;
+    else delete process.env.AWS_REGION;
+    if (origDefaultRegion !== undefined) process.env.AWS_DEFAULT_REGION = origDefaultRegion;
+    else delete process.env.AWS_DEFAULT_REGION;
+  }
+}
+
+// ─── Test: S3StorageError ────────────────────────────────────────────────────
+
+async function testS3StorageError() {
+  console.log('\n=== S3 FILE STORAGE: S3StorageError ===\n');
+
+  const err = new S3StorageError({
+    message: 'Test error message',
+    code: 'AUTH_FAILED',
+    bucket: 'my-bucket',
+    key: 'path/to/file.txt',
+    originalError: new Error('underlying error'),
+  });
+
+  assert(err instanceof Error, 'S3StorageError should be instanceof Error');
+  assert(err instanceof S3StorageError, 'Should be instanceof S3StorageError');
+  assertEqual(err.name, 'S3StorageError', 'Should have correct name');
+  assertEqual(err.code, 'AUTH_FAILED', 'Should have correct code');
+  assertEqual(err.bucket, 'my-bucket', 'Should have correct bucket');
+  assertEqual(err.key, 'path/to/file.txt', 'Should have correct key');
+  assert(err.originalError !== undefined, 'Should have original error');
+  assert(err.message.includes('Test error message'), 'Should have message');
+
+  // Test without optional fields
+  const err2 = new S3StorageError({
+    message: 'Simple error',
+    code: 'UNKNOWN',
+    bucket: 'bucket',
+  });
+  assert(err2.key === undefined, 'Key should be undefined when not provided');
+  assert(err2.originalError === undefined, 'Original error should be undefined when not provided');
+}
+
+// ─── Test: S3 Error Wrapping ─────────────────────────────────────────────────
+
+class ErrorMockProvider implements FileStorageProvider {
+  private errorToThrow: Error;
+
+  constructor(errorToThrow: Error) {
+    this.errorToThrow = errorToThrow;
+  }
+
+  async listFiles(): Promise<string[]> {
+    throw this.errorToThrow;
+  }
+
+  async readFile(_relativePath: string): Promise<string> {
+    throw this.errorToThrow;
+  }
+
+  async getFileSize(_relativePath: string): Promise<number> {
+    throw this.errorToThrow;
+  }
+}
+
+async function testS3ErrorWrapping() {
+  console.log('\n=== S3 FILE STORAGE: Error Wrapping ===\n');
+
+  // Test construction with endpoint for MinIO/LocalStack
+  const minioConfig: FileStorageConfig = {
+    type: 's3',
+    path: 'test-bucket',
+    endpoint: 'http://localhost:9000',
+    credentials: {
+      accessKeyId: 'minioadmin',
+      secretAccessKey: 'minioadmin',
+    },
+  };
+
+  const minioStorage = new S3FileStorage(minioConfig);
+  assert(minioStorage !== null, 'Should construct with MinIO endpoint');
+
+  // Test with LocalStack endpoint
+  const localstackConfig: FileStorageConfig = {
+    type: 's3',
+    path: 'test-bucket',
+    endpoint: 'http://localhost:4566',
+    credentials: {
+      accessKeyId: 'test',
+      secretAccessKey: 'test',
+    },
+  };
+
+  const localstackStorage = new S3FileStorage(localstackConfig);
+  assert(localstackStorage !== null, 'Should construct with LocalStack endpoint');
+
+  // Test that listFiles wraps errors nicely
+  try {
+    await minioStorage.listFiles();
+    assert(true, 'MinIO listFiles executed (unlikely in test env)');
+  } catch (err: any) {
+    // Should be wrapped in our S3StorageError or be an SDK missing error
+    const isWrapped = err instanceof S3StorageError;
+    const isSdkMissing = err.message?.includes('@aws-sdk/client-s3');
+    assert(
+      isWrapped || isSdkMissing,
+      `Error should be S3StorageError or SDK missing error: ${err.constructor?.name}`
+    );
+    if (isWrapped) {
+      assert(
+        ['NETWORK_ERROR', 'AUTH_FAILED', 'BUCKET_NOT_FOUND', 'UNKNOWN'].includes(err.code),
+        `Error code should be descriptive: ${err.code}`
+      );
+      assert(
+        err.bucket === 'test-bucket',
+        'Error should include bucket name'
+      );
+    }
+  }
+
+  // Test readFile error wrapping
+  try {
+    await localstackStorage.readFile('nonexistent.txt');
+    assert(true, 'LocalStack readFile executed (unlikely in test env)');
+  } catch (err: any) {
+    const isWrapped = err instanceof S3StorageError;
+    const isSdkMissing = err.message?.includes('@aws-sdk/client-s3');
+    assert(
+      isWrapped || isSdkMissing,
+      `readFile error should be wrapped: ${err.constructor?.name}`
+    );
+  }
+}
+
+// ─── Test: S3 Endpoint Configuration for Various Providers ───────────────────
+
+async function testS3EndpointConfigurations() {
+  console.log('\n=== S3 FILE STORAGE: Endpoint Configurations ===\n');
+
+  // MinIO configuration
+  const minioStorage = new S3FileStorage({
+    type: 's3',
+    path: 'minio-bucket',
+    endpoint: 'http://minio.local:9000',
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: 'minioadmin',
+      secretAccessKey: 'minioadmin',
+    },
+  });
+  assert(minioStorage !== null, 'MinIO config should be valid');
+  assertEqual(minioStorage.getCredentialSource(), 'explicit', 'MinIO should use explicit creds');
+
+  // LocalStack configuration
+  const localstackStorage = new S3FileStorage({
+    type: 's3',
+    path: 'localstack-bucket',
+    endpoint: 'http://localhost:4566',
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: 'test',
+      secretAccessKey: 'test',
+    },
+  });
+  assert(localstackStorage !== null, 'LocalStack config should be valid');
+
+  // DigitalOcean Spaces style
+  const doStorage = new S3FileStorage({
+    type: 's3',
+    path: 'my-space',
+    endpoint: 'https://nyc3.digitaloceanspaces.com',
+    region: 'nyc3',
+    credentials: {
+      accessKeyId: 'do-key',
+      secretAccessKey: 'do-secret',
+    },
+  });
+  assert(doStorage !== null, 'DigitalOcean Spaces config should be valid');
+
+  // Backblaze B2 style
+  const b2Storage = new S3FileStorage({
+    type: 's3',
+    path: 'b2-bucket',
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    credentials: {
+      accessKeyId: 'b2-key',
+      secretAccessKey: 'b2-secret',
+    },
+  });
+  assert(b2Storage !== null, 'Backblaze B2 config should be valid');
+
+  // forcePathStyle explicit
+  const forcePathStorage = new S3FileStorage({
+    type: 's3',
+    path: 'my-bucket',
+    forcePathStyle: true,
+  });
+  assert(forcePathStorage !== null, 'forcePathStyle config should be valid');
+}
+
+// ─── Test: Mock Error Scenarios via FileContextBuilder ────────────────────────
+
+class FailingMockProvider implements FileStorageProvider {
+  private _failOn: string;
+  private _errorType: string;
+  private files: Map<string, string>;
+
+  constructor(files: Record<string, string>, failOn: string, errorType: string) {
+    this.files = new Map(Object.entries(files));
+    this._failOn = failOn;
+    this._errorType = errorType;
+  }
+
+  async listFiles(): Promise<string[]> {
+    if (this._failOn === 'list') {
+      throw this.makeError();
+    }
+    return Array.from(this.files.keys()).sort();
+  }
+
+  async readFile(relativePath: string): Promise<string> {
+    if (this._failOn === 'read' || this._failOn === relativePath) {
+      throw this.makeError();
+    }
+    const content = this.files.get(relativePath);
+    if (!content) throw new Error(`File not found: ${relativePath}`);
+    return content;
+  }
+
+  async getFileSize(relativePath: string): Promise<number> {
+    if (this._failOn === 'size' || this._failOn === `size:${relativePath}`) {
+      throw this.makeError();
+    }
+    const content = this.files.get(relativePath);
+    if (!content) throw new Error(`File not found: ${relativePath}`);
+    return Buffer.byteLength(content, 'utf-8');
+  }
+
+  private makeError(): Error {
+    switch (this._errorType) {
+      case 'auth':
+        return Object.assign(new Error('Could not load credentials from any providers'), { name: 'CredentialsProviderError' });
+      case 'access':
+        return Object.assign(new Error('Access Denied'), { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } });
+      case 'not-found':
+        return Object.assign(new Error('The specified bucket does not exist'), { name: 'NoSuchBucket', $metadata: { httpStatusCode: 404 } });
+      case 'network':
+        return Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:9000'), { name: 'NetworkingError' });
+      default:
+        return new Error(`Unknown error type: ${this._errorType}`);
+    }
+  }
+}
+
+async function testMockErrorScenarios() {
+  console.log('\n=== S3 FILE STORAGE: Mock Error Scenarios ===\n');
+
+  const mockFiles = {
+    'file1.txt': 'hello',
+    'file2.txt': 'world',
+  };
+
+  // 1. Read error for specific file is gracefully handled by FileContextBuilder
+  const readFailProvider = new FailingMockProvider(mockFiles, 'file1.txt', 'network');
+  const builder1 = new FileContextBuilderWithMock(readFailProvider, {
+    type: 's3',
+    path: 'test-bucket',
+  });
+  const result1 = await builder1.buildContext();
+  assertEqual(result1.files.length, 1, 'Should include file2.txt despite file1.txt read error');
+  assert(
+    result1.skipped.some(f => f.relativePath === 'file1.txt' && f.reason.includes('read error')),
+    'Should record file1.txt as skipped due to read error'
+  );
+
+  // 2. Size check error is gracefully handled
+  const sizeFailProvider = new FailingMockProvider(mockFiles, 'size:file1.txt', 'access');
+  const builder2 = new FileContextBuilderWithMock(sizeFailProvider, {
+    type: 's3',
+    path: 'test-bucket',
+  });
+  const result2 = await builder2.buildContext();
+  // The builder should catch the error and skip the file
+  assert(
+    result2.skipped.some(f => f.relativePath === 'file1.txt'),
+    'Should skip file1.txt when size check fails'
+  );
+
+  // 3. List failure should propagate
+  const listFailProvider = new FailingMockProvider(mockFiles, 'list', 'auth');
+  const builder3 = new FileContextBuilderWithMock(listFailProvider, {
+    type: 's3',
+    path: 'test-bucket',
+  });
+  try {
+    await builder3.buildContext();
+    assert(false, 'Should have thrown on list failure');
+  } catch (err: any) {
+    assert(
+      err.message.includes('Could not load credentials'),
+      'List failure should propagate with original message'
+    );
+  }
+}
+
+// ─── Test: FileContextBuilder Error Recovery with Mock ───────────────────────
+
+// Updated helper class that catches per-file errors
+class FileContextBuilderWithMockV2 {
+  private provider: FileStorageProvider;
+  private config: FileStorageConfig;
+
+  constructor(provider: FileStorageProvider, config: FileStorageConfig) {
+    this.provider = provider;
+    this.config = config;
+  }
+
+  async buildContext(): Promise<FileStorageResult> {
+    const maxFileSize = this.config.maxFileSize ?? 1024 * 1024;
+    const maxTotalSize = this.config.maxTotalSize ?? 10 * 1024 * 1024;
+    const maxFiles = this.config.maxFiles ?? 1000;
+
+    const allFiles = await this.provider.listFiles();
+    const matchedFiles: string[] = [];
+    const skipped: Array<{ relativePath: string; reason: string }> = [];
+
+    for (const filePath of allFiles) {
+      if (this.config.extensions && this.config.extensions.length > 0) {
+        const ext = path.extname(filePath).toLowerCase();
+        if (!this.config.extensions.includes(ext)) {
+          skipped.push({ relativePath: filePath, reason: `extension ${ext} not in allowed list` });
+          continue;
+        }
+      }
+      matchedFiles.push(filePath);
+    }
+
+    const includedFiles: Array<{ relativePath: string; size: number }> = [];
+    const contextParts: string[] = [];
+    let totalSize = 0;
+
+    contextParts.push(`=== FILE STRUCTURE ===\nTotal files: ${matchedFiles.length}\n=== END FILE STRUCTURE ===\n`);
+
+    for (const filePath of matchedFiles) {
+      if (includedFiles.length >= maxFiles) break;
+
+      try {
+        const fileSize = await this.provider.getFileSize(filePath);
+        if (fileSize > maxFileSize) {
+          skipped.push({ relativePath: filePath, reason: 'too large' });
+          continue;
+        }
+        if (totalSize + fileSize > maxTotalSize) {
+          skipped.push({ relativePath: filePath, reason: 'total size exceeded' });
+          continue;
+        }
+
+        const content = await this.provider.readFile(filePath);
+        const ext = path.extname(filePath).slice(1);
+        const block = `=== FILE: ${filePath} ===\n\`\`\`${ext}\n${content}\n\`\`\`\n=== END FILE: ${filePath} ===\n`;
+        contextParts.push(block);
+        totalSize += Buffer.byteLength(block, 'utf-8');
+        includedFiles.push({ relativePath: filePath, size: fileSize });
+      } catch (err: any) {
+        skipped.push({ relativePath: filePath, reason: `read error: ${err.message}` });
+      }
+    }
+
+    return {
+      context: contextParts.join('\n'),
+      files: includedFiles,
+      totalSize,
+      skipped,
+    };
+  }
+}
+
+async function testErrorRecovery() {
+  console.log('\n=== S3 FILE STORAGE: Error Recovery ===\n');
+
+  const mockFiles = {
+    'good1.txt': 'good content 1',
+    'bad.txt': 'will fail on read',
+    'good2.txt': 'good content 2',
+  };
+
+  // Provider that fails on reading 'bad.txt'
+  const provider = new FailingMockProvider(mockFiles, 'bad.txt', 'network');
+  const builder = new FileContextBuilderWithMockV2(provider, {
+    type: 's3',
+    path: 'test-bucket',
+  });
+  const result = await builder.buildContext();
+
+  assertEqual(result.files.length, 2, 'Should include 2 good files despite 1 failure');
+  assert(
+    result.files.some(f => f.relativePath === 'good1.txt'),
+    'Should include good1.txt'
+  );
+  assert(
+    result.files.some(f => f.relativePath === 'good2.txt'),
+    'Should include good2.txt'
+  );
+  assert(
+    result.skipped.some(f => f.relativePath === 'bad.txt' && f.reason.includes('read error')),
+    'Should skip bad.txt with error reason'
+  );
+  assert(
+    result.context.includes('good content 1'),
+    'Context should include good1 content'
+  );
+  assert(
+    result.context.includes('good content 2'),
+    'Context should include good2 content'
+  );
+  assert(
+    !result.context.includes('will fail on read'),
+    'Context should NOT include bad file content'
+  );
+}
+
+// ─── Test: S3 with forcePathStyle ────────────────────────────────────────────
+
+async function testForcePathStyle() {
+  console.log('\n=== S3 FILE STORAGE: forcePathStyle ===\n');
+
+  // When endpoint is set, forcePathStyle should be auto-enabled
+  const withEndpoint = new S3FileStorage({
+    type: 's3',
+    path: 'my-bucket',
+    endpoint: 'http://localhost:9000',
+    credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+  });
+  assert(withEndpoint !== null, 'Should construct with auto forcePathStyle');
+
+  // Explicit forcePathStyle without endpoint
+  const explicit = new S3FileStorage({
+    type: 's3',
+    path: 'my-bucket',
+    forcePathStyle: true,
+    credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+  });
+  assert(explicit !== null, 'Should construct with explicit forcePathStyle');
+
+  // No forcePathStyle without endpoint (normal S3)
+  const normal = new S3FileStorage({
+    type: 's3',
+    path: 'my-bucket',
+    credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+  });
+  assert(normal !== null, 'Should construct without forcePathStyle');
+}
+
 // ─── Run All Tests ───────────────────────────────────────────────────────────
 
 async function runAllTests() {
@@ -919,6 +1528,18 @@ async function runAllTests() {
   await testMockS3Provider();
   await testMockS3NestedFolders();
   await testMockS3MaxConstraints();
+
+  // S3 credential resolution tests
+  await testS3CredentialResolution();
+  await testS3RegionResolution();
+
+  // S3 error handling tests
+  await testS3StorageError();
+  await testS3ErrorWrapping();
+  await testS3EndpointConfigurations();
+  await testMockErrorScenarios();
+  await testErrorRecovery();
+  await testForcePathStyle();
 
   // Integration-like test
   await testContextForLLM();

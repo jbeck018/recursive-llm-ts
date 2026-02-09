@@ -10,5 +10,6 @@ export {
   FileEntry,
   LocalFileStorage,
   S3FileStorage,
+  S3StorageError,
   buildFileContext,
 } from './file-storage';
