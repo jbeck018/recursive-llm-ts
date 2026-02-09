@@ -69,12 +69,27 @@ export interface FileStorageConfig {
   path: string;
   /** For S3: the prefix (folder path) within the bucket */
   prefix?: string;
-  /** For S3: AWS region */
+  /** For S3: AWS region (falls back to AWS_REGION env var, then 'us-east-1') */
   region?: string;
-  /** For S3: explicit credentials */
+  /**
+   * For S3: explicit credentials.
+   * Resolution order:
+   * 1. This field (explicit credentials)
+   * 2. Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+   * 3. AWS SDK default credential chain (IAM role, ~/.aws/credentials, ECS task role, etc.)
+   */
   credentials?: { accessKeyId: string; secretAccessKey: string; sessionToken?: string };
-  /** For S3: custom endpoint URL (e.g. for MinIO, LocalStack) */
+  /**
+   * For S3: custom endpoint URL.
+   * Use for S3-compatible services: MinIO, LocalStack, DigitalOcean Spaces, Backblaze B2.
+   * When set, forcePathStyle is automatically enabled.
+   */
   endpoint?: string;
+  /**
+   * For S3: force path-style addressing (bucket in path, not subdomain).
+   * Automatically true when endpoint is set.
+   */
+  forcePathStyle?: boolean;
   /** Glob patterns to include (e.g. ['*.ts', '*.md']) */
   includePatterns?: string[];
   /** Glob patterns to exclude (e.g. ['node_modules/**']) */

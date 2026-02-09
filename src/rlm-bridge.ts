@@ -118,7 +118,6 @@ export class PythoniaBridge implements PythonBridge {
         stats: statsObj
       };
     } catch (error: any) {
-      console.error('[RLM_DEBUG] Error details:', error);
       throw new Error(`RLM completion failed: ${error.message || error}`);
     }
   }
