@@ -1,5 +1,39 @@
 # Changelog
 
+## [4.4.0] - 2026-02-09
+
+### ✨ New Features
+- **File Storage Context** - Process local directories or S3 buckets as LLM context
+  - `completionFromFiles()` and `structuredCompletionFromFiles()` methods on RLM class
+  - `FileContextBuilder` for building structured context from file trees
+  - `LocalFileStorage` for local filesystem traversal with recursive directory support
+  - `S3FileStorage` for AWS S3, MinIO, LocalStack, DigitalOcean Spaces, Backblaze B2
+  - Configurable filters: extensions, glob include/exclude patterns, max file/total size, max files
+  - Per-file error recovery (failed reads are skipped, not fatal)
+- **S3 Credential Chain** - Flexible credential resolution for S3 storage
+  - Explicit credentials > environment variables > AWS SDK default chain
+  - Environment variable support: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
+  - `AWS_DEFAULT_REGION` fallback alongside `AWS_REGION`
+- **S3StorageError** - Typed error class with actionable messages
+  - Error codes: `AUTH_FAILED`, `ACCESS_DENIED`, `BUCKET_NOT_FOUND`, `KEY_NOT_FOUND`, `NETWORK_ERROR`, `REGION_MISMATCH`
+  - User-friendly remediation hints for each error type
+- **S3-Compatible Services** - First-class support for non-AWS providers
+  - Custom endpoint configuration with automatic `forcePathStyle`
+  - Tested with MinIO, LocalStack, DigitalOcean Spaces, Backblaze B2
+
+### 🔧 Fixed
+- **Parallel structured output** - Rewrote JSON extraction with balanced-brace parser (replaces shallow regex)
+  - Per-field schema wrapping eliminates ambiguity for non-object types
+  - Automatic fallback from parallel to direct single-call on failure
+  - Better error collection captures all parallel failures
+- **Type exports** - Added missing exports: `SubTask`, `CoordinatorConfig`, `SchemaDecomposition`, `S3StorageError`
+- **FileStorageConfig** - Consolidated to single canonical definition (was duplicated)
+- **Debug leak** - Removed leftover `console.error('[RLM_DEBUG]...')` from production code
+
+### 🧪 Testing
+- 117 file storage tests: local operations, S3 construction, credential resolution, region resolution, error wrapping, endpoint configs, mock error scenarios, error recovery, forcePathStyle
+- 44 Go tests for structured output: balanced JSON extraction, schema wrapping, validation, parallel merging
+
 ## [4.3.0] - 2026-01-23
 
 ### ✨ Major Improvements

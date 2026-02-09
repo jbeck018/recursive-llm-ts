@@ -15,6 +15,7 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 🔍 **Structured Outputs** - Extract typed data with Zod schemas and parallel execution
 🧠 **Meta-Agent Mode** - Automatically optimize queries for better results
 📊 **Observability** - OpenTelemetry tracing, Langfuse integration, and debug logging
+📁 **File Storage** - Process local directories or S3/MinIO/LocalStack buckets as LLM context
 
 ## Installation
 
@@ -281,6 +282,123 @@ LANGFUSE_SECRET_KEY=sk-...
 LANGFUSE_HOST=https://cloud.langfuse.com
 ```
 
+### File Storage Context
+
+Process files from local directories or S3-compatible storage as LLM context. Supports recursive directory traversal, filtering, and automatic context formatting.
+
+#### Local Files
+
+```typescript
+import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY
+});
+
+// Process all TypeScript files in a directory
+const result = await rlm.completionFromFiles(
+  'Summarize the architecture of this codebase',
+  {
+    type: 'local',
+    path: '/path/to/project/src',
+    extensions: ['.ts', '.tsx'],
+    excludePatterns: ['*.test.ts', '*.spec.ts'],
+    maxFileSize: 100_000,  // Skip files over 100KB
+  }
+);
+
+console.log(result.result);
+console.log(`Files processed: ${result.fileStorage?.files.length}`);
+```
+
+#### S3 / Object Storage
+
+Works with AWS S3, MinIO, LocalStack, DigitalOcean Spaces, and Backblaze B2.
+
+```typescript
+// AWS S3 with explicit credentials
+const result = await rlm.completionFromFiles(
+  'What are the key findings in these reports?',
+  {
+    type: 's3',
+    path: 'my-bucket',          // Bucket name
+    prefix: 'reports/2024/',    // Folder prefix
+    extensions: ['.md', '.txt'],
+    credentials: {
+      accessKeyId: 'AKIA...',
+      secretAccessKey: '...',
+    },
+    region: 'us-west-2',
+  }
+);
+
+// S3 with environment variable credentials
+// Uses AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+const result2 = await rlm.completionFromFiles(
+  'Summarize these documents',
+  { type: 's3', path: 'my-bucket', prefix: 'docs/' }
+);
+
+// MinIO / LocalStack
+const result3 = await rlm.completionFromFiles(
+  'Analyze the data',
+  {
+    type: 's3',
+    path: 'local-bucket',
+    endpoint: 'http://localhost:9000',  // MinIO
+    credentials: { accessKeyId: 'minioadmin', secretAccessKey: 'minioadmin' },
+  }
+);
+```
+
+**Credential Resolution Order:**
+1. Explicit `credentials` in config
+2. Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
+3. AWS SDK default credential chain (IAM roles, `~/.aws/credentials`, ECS task role, etc.)
+
+#### Structured Extraction from Files
+
+```typescript
+import { z } from 'zod';
+
+const schema = z.object({
+  summary: z.string(),
+  mainTopics: z.array(z.string()),
+  sentiment: z.enum(['positive', 'negative', 'neutral']),
+});
+
+const result = await rlm.structuredCompletionFromFiles(
+  'Extract a summary, main topics, and overall sentiment',
+  { type: 'local', path: './docs', extensions: ['.md'] },
+  schema
+);
+
+console.log(result.result.mainTopics); // string[]
+```
+
+#### Preview Files Before Processing
+
+```typescript
+import { FileContextBuilder } from 'recursive-llm-ts';
+
+const builder = new FileContextBuilder({
+  type: 'local',
+  path: './src',
+  extensions: ['.ts'],
+  excludePatterns: ['node_modules/**'],
+});
+
+// List matching files without reading content
+const files = await builder.listMatchingFiles();
+console.log('Would process:', files);
+
+// Build full context
+const ctx = await builder.buildContext();
+console.log(`Total size: ${ctx.totalSize} bytes`);
+console.log(`Files included: ${ctx.files.length}`);
+console.log(`Files skipped: ${ctx.skipped.length}`);
+```
+
 ## API
 
 ### `RLM`
@@ -329,6 +447,21 @@ const schema = z.object({ score: z.number(), summary: z.string() });
 const result = await rlm.structuredCompletion('Analyze', doc, schema);
 // result.result is typed as { score: number, summary: string }
 ```
+
+#### `completionFromFiles(query: string, fileConfig: FileStorageConfig): Promise<RLMResult & { fileStorage?: FileStorageResult }>`
+
+Process a query using files from local or S3 storage as context.
+
+**Parameters:**
+- `query`: The question or task to perform
+- `fileConfig`: File storage configuration (local path or S3 bucket)
+
+**Returns:**
+- Result with `fileStorage` metadata (files included, skipped, total size)
+
+#### `structuredCompletionFromFiles<T>(query: string, fileConfig: FileStorageConfig, schema: ZodSchema<T>, options?): Promise<StructuredRLMResult<T> & { fileStorage?: FileStorageResult }>`
+
+Extract structured data from file-based context.
 
 #### `cleanup(): Promise<void>`
 
@@ -423,6 +556,33 @@ interface TraceEvent {
   trace_id?: string;
   span_id?: string;
 }
+
+interface FileStorageConfig {
+  type: 'local' | 's3';         // Storage provider type
+  path: string;                  // Local directory path or S3 bucket name
+  prefix?: string;               // S3 key prefix (folder path)
+  region?: string;               // AWS region (default: AWS_REGION env or 'us-east-1')
+  credentials?: {                // S3 explicit credentials (optional)
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+  };
+  endpoint?: string;             // Custom S3 endpoint (MinIO, LocalStack, etc.)
+  forcePathStyle?: boolean;      // Force path-style S3 URLs (auto-enabled with endpoint)
+  extensions?: string[];         // File extensions to include (e.g., ['.ts', '.md'])
+  includePatterns?: string[];    // Glob patterns to include
+  excludePatterns?: string[];    // Glob patterns to exclude
+  maxFileSize?: number;          // Max individual file size in bytes (default: 1MB)
+  maxTotalSize?: number;         // Max total context size in bytes (default: 10MB)
+  maxFiles?: number;             // Max number of files (default: 1000)
+}
+
+interface FileStorageResult {
+  context: string;               // Built context string with file contents
+  files: Array<{ relativePath: string; size: number }>;
+  totalSize: number;
+  skipped: Array<{ relativePath: string; reason: string }>;
+}
 ```
 
 ## Environment Variables
@@ -439,6 +599,17 @@ Or pass it in the configuration:
 const rlm = new RLM('gpt-4o-mini', {
   api_key: 'your-api-key-here'
 });
+```
+
+### S3 File Storage
+
+When using S3 file storage without explicit credentials, these environment variables are checked:
+
+```bash
+export AWS_ACCESS_KEY_ID='your-access-key'
+export AWS_SECRET_ACCESS_KEY='your-secret-key'
+export AWS_SESSION_TOKEN='optional-session-token'
+export AWS_REGION='us-east-1'
 ```
 
 ## Custom Providers

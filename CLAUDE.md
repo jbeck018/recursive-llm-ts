@@ -25,6 +25,7 @@ ts-node test/test-go.ts                 # Go bridge tests
 ts-node test/structured-test.ts         # Structured output tests
 ts-node test/zod-schema-converter-test.ts  # Schema conversion tests
 ts-node test/new-features-test.ts       # Meta-agent, observability, config tests
+ts-node test/file-storage-test.ts       # File storage tests (local + S3, 117 tests)
 
 # Go tests
 cd go
@@ -33,6 +34,7 @@ go test ./rlm -run TestParser -v        # Single test
 go test ./rlm -run TestSchema -v        # Schema validation tests
 go test ./rlm -run TestObserver -v      # Observability tests
 go test ./rlm -run TestMetaAgent -v     # Meta-agent tests
+go test ./rlm -run TestExtract -v       # Balanced JSON extraction tests
 go test ./rlm/... -cover                # With coverage
 go test ./rlm/... -bench=. -benchmem    # Benchmarks
 
@@ -70,11 +72,12 @@ TypeScript (parses result, exposes trace events)
 ### Key Files
 
 **TypeScript:**
-- `src/rlm.ts` - Main RLM class, Zod->JSON Schema conversion, trace event access
-- `src/bridge-interface.ts` - Config types (RLMConfig, MetaAgentConfig, ObservabilityConfig, TraceEvent)
+- `src/rlm.ts` - Main RLM class, Zod->JSON Schema conversion, trace event access, file-based completions
+- `src/bridge-interface.ts` - Config types (RLMConfig, MetaAgentConfig, ObservabilityConfig, TraceEvent, FileStorageConfig)
+- `src/file-storage.ts` - File storage providers (LocalFileStorage, S3FileStorage), FileContextBuilder, S3StorageError
 - `src/go-bridge.ts` - Spawns Go binary, handles stdin/stdout JSON IPC
 - `src/bridge-factory.ts` - Runtime detection, bridge selection (Go preferred, Python fallback)
-- `src/structured-types.ts` - TypeScript interfaces for structured output
+- `src/structured-types.ts` - TypeScript interfaces for structured output (SubTask, CoordinatorConfig, SchemaDecomposition)
 
 **Go:**
 - `go/cmd/rlm/main.go` - CLI entry, JSON I/O handler
@@ -115,6 +118,23 @@ When meta-agent is enabled:
 4. Optimized query is passed to the RLM engine
 5. Falls back to original query on error
 
+### File Storage Flow
+
+When file-based completions are used:
+1. FileContextBuilder creates appropriate provider (LocalFileStorage or S3FileStorage)
+2. Provider lists all files recursively (traverses nested directories)
+3. Filters applied: extensions, include/exclude globs, max file size, max total size, max files
+4. Files read and formatted with clear delimiters for LLM consumption
+5. Per-file errors caught gracefully (skipped with reason, other files still included)
+6. Built context string passed to normal completion/structuredCompletion flow
+
+S3 credential resolution order:
+1. Explicit `config.credentials`
+2. Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`
+3. AWS SDK default credential chain (IAM role, `~/.aws/credentials`, ECS task role, etc.)
+
+S3-compatible services supported: AWS S3, MinIO, LocalStack, DigitalOcean Spaces, Backblaze B2
+
 ### Observability Flow
 
 When observability is configured:
@@ -145,6 +165,8 @@ result, stats, err := engine.Completion(query, context)
 Required: `OPENAI_API_KEY` (or pass via config)
 
 Optional: `AZURE_API_KEY`, `RLM_GO_BINARY`, `RLM_DEBUG`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+
+S3 File Storage: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_REGION`, `AWS_DEFAULT_REGION`
 
 ## CI/CD
 
