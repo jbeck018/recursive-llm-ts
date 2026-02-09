@@ -28,7 +28,10 @@
     "structured-output",
     "zod",
     "schema",
-    "extraction"
+    "extraction",
+    "file-storage",
+    "s3",
+    "minio"
   ],
   "author": "",
   "license": "MIT",
