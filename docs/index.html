@@ -40,7 +40,7 @@
     <section class="hero">
       <div class="container">
         <div class="hero-badge fade-in">
-          v4.4.1 &mdash; File Storage &amp; S3 Support
+          v4.5.0 &mdash; Streaming, Caching, Retry &amp; Events
         </div>
         <h1 class="fade-in fade-in-delay-1">
           Process <span class="gradient-text">Unbounded Context</span><br>
@@ -82,8 +82,8 @@
             <div class="stat-label">Tokens</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value">100+</div>
-            <div class="stat-label">LLM Providers</div>
+            <div class="stat-value">120+</div>
+            <div class="stat-label">Tests</div>
           </div>
           <div class="stat-item">
             <div class="stat-value">0</div>
@@ -140,6 +140,26 @@
             <div class="feature-icon yellow">&#128230;</div>
             <h3>Simple Distribution</h3>
             <p>Single npm package with auto-building Go binary. Pre-built binaries for common platforms. Docker-ready with multi-stage builds.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon green">&#9881;</div>
+            <h3>Streaming</h3>
+            <p>Async iterable streaming for real-time token delivery. Stream text or structured objects with AbortController support and backpressure handling.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon blue">&#128190;</div>
+            <h3>Caching</h3>
+            <p>Built-in memory (LRU+TTL) and file-based cache backends. SHA-256 key generation, hit/miss stats, and automatic cache invalidation.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon purple">&#128737;</div>
+            <h3>Retry &amp; Resilience</h3>
+            <p>Exponential, linear, and fixed backoff with jitter. Rate-limit aware retries, multi-provider fallback chains, and abort signal support.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon yellow">&#9888;</div>
+            <h3>Typed Errors</h3>
+            <p>9 structured error classes with error codes, retryability flags, and actionable suggestions. Auto-classification from raw errors via classifyError().</p>
           </div>
         </div>
       </div>
@@ -217,6 +237,8 @@
           <button class="tab-btn" data-tab="structured">Structured Output</button>
           <button class="tab-btn" data-tab="files">File Context</button>
           <button class="tab-btn" data-tab="advanced">Advanced</button>
+          <button class="tab-btn" data-tab="streaming">Streaming</button>
+          <button class="tab-btn" data-tab="builder">Builder API</button>
         </div>
 
         <div class="tab-panel active" data-panel="basic">
@@ -351,6 +373,79 @@ const result = await rlm.completion('what happened?', transcript);
 const events = rlm.getTraceEvents();
 for (const e of events) {
   console.log(`[${e.type}] ${e.name}`, e.attributes);
+}</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="streaming">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+// Stream text tokens in real-time
+const stream = await rlm.streamCompletion(
+  'Summarize this document',
+  longDocument
+);
+
+for await (const chunk of stream) {
+  if (chunk.type === 'text') {
+    process.stdout.write(chunk.text);
+  }
+}
+
+// Or collect all text at once
+const stream2 = await rlm.streamCompletion('...', doc);
+const fullText = await stream2.toText();
+
+// Stream structured objects
+const objStream = await rlm.streamStructuredCompletion(
+  'Extract data', context, schema
+);
+const result = await objStream.toObject();</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="builder">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+// Fluent builder API
+const rlm = RLM.builder()
+  .model('gpt-4o-mini')
+  .apiKey(process.env.OPENAI_API_KEY!)
+  .maxDepth(5)
+  .maxIterations(20)
+  .enableMetaAgent('gpt-4o')
+  .enableDebug()
+  .enableCache({ maxEntries: 500, ttl: 3600000 })
+  .enableRetry({ maxRetries: 3, backoff: 'exponential' })
+  .build();
+
+// Factory methods
+const rlm2 = RLM.fromEnv();          // Auto-detect from env vars
+const rlm3 = RLM.withDebug('gpt-4o'); // Quick debug setup
+const rlm4 = RLM.forAzure(            // Azure-specific setup
+  'my-deployment',
+  'https://my.openai.azure.com',
+  process.env.AZURE_API_KEY!
+);
+
+// Config validation
+const { valid, issues } = rlm.validate();
+for (const issue of issues) {
+  console.log(`[${issue.level}] ${issue.field}: ${issue.message}`);
 }</code></pre>
           </div>
         </div>
