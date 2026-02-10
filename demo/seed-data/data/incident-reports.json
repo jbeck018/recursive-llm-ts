@@ -1,0 +1,107 @@
+[
+  {
+    "id": "inc_001",
+    "severity": "critical",
+    "title": "Event ingestion latency spike - us-east-1",
+    "status": "resolved",
+    "created_at": "2024-06-15T14:23:00Z",
+    "resolved_at": "2024-06-15T15:47:00Z",
+    "duration_minutes": 84,
+    "affected_services": ["event-ingestion", "stream-processing"],
+    "affected_regions": ["us-east-1"],
+    "root_cause": "A Kafka broker in us-east-1a experienced an unclean leader election after an EBS volume reached its IOPS limit. This caused partition reassignment across the cluster, leading to temporary producer backpressure. The ingestion service's circuit breaker activated after detecting 3 consecutive timeouts, causing a 12-minute full pause in event acceptance for the affected partition set.",
+    "timeline": [
+      {"time": "14:23", "event": "AlertManager fires: kafka_producer_latency_p99 > 500ms"},
+      {"time": "14:25", "event": "On-call engineer acknowledges alert"},
+      {"time": "14:31", "event": "Investigation reveals broker-2 in us-east-1a is lagging"},
+      {"time": "14:38", "event": "EBS CloudWatch confirms IOPS throttling on broker-2"},
+      {"time": "14:42", "event": "Circuit breaker activated, ingestion paused for 15 partitions"},
+      {"time": "14:45", "event": "Status page updated: Degraded event ingestion in us-east-1"},
+      {"time": "14:52", "event": "Decision: migrate broker-2 to io2 volume type"},
+      {"time": "15:15", "event": "New io2 volume attached, broker-2 restarted"},
+      {"time": "15:28", "event": "Partition reassignment complete, all ISR caught up"},
+      {"time": "15:35", "event": "Circuit breaker reset, ingestion resumed"},
+      {"time": "15:47", "event": "All metrics nominal, incident resolved"}
+    ],
+    "impact": {
+      "events_delayed": 2450000,
+      "events_lost": 0,
+      "customers_affected": 342,
+      "sla_breach": false
+    },
+    "action_items": [
+      "Migrate all Kafka brokers to io2 EBS volumes (completed 2024-06-18)",
+      "Add EBS IOPS utilization to pre-flight checks (completed 2024-06-20)",
+      "Tune circuit breaker: increase timeout threshold from 3 to 5 consecutive failures",
+      "Add automated volume type upgrade runbook"
+    ]
+  },
+  {
+    "id": "inc_002",
+    "severity": "high",
+    "title": "Dashboard query timeouts for EU customers",
+    "status": "resolved",
+    "created_at": "2024-05-22T09:15:00Z",
+    "resolved_at": "2024-05-22T11:30:00Z",
+    "duration_minutes": 135,
+    "affected_services": ["query-engine", "dashboard-service"],
+    "affected_regions": ["eu-west-1"],
+    "root_cause": "A customer's automated reporting system generated 2,400 complex GROUP BY queries within a 5-minute window, exhausting the ClickHouse query queue in the EU cluster. The query engine's per-tenant rate limiting was not applied to internal API calls from the dashboard service, allowing the burst to bypass the intended safeguards. Other EU customers experienced query timeouts (P99 latency spiked from 450ms to 28s).",
+    "timeline": [
+      {"time": "09:15", "event": "First customer report of slow dashboards in EU region"},
+      {"time": "09:22", "event": "Automated alert: clickhouse_query_queue_length > 500"},
+      {"time": "09:30", "event": "Identified tenant with 2,400 queued queries"},
+      {"time": "09:35", "event": "Applied emergency per-tenant query limit via feature flag"},
+      {"time": "09:45", "event": "Query queue draining, new queries processing normally"},
+      {"time": "10:15", "event": "Queue fully drained, latency returning to baseline"},
+      {"time": "10:30", "event": "Contacted affected tenant about their reporting pattern"},
+      {"time": "11:30", "event": "Verified all metrics normal for 1 hour, incident resolved"}
+    ],
+    "impact": {
+      "events_delayed": 0,
+      "events_lost": 0,
+      "customers_affected": 89,
+      "sla_breach": true
+    },
+    "action_items": [
+      "Apply per-tenant rate limiting to all query paths including internal APIs (completed 2024-05-25)",
+      "Add query queue depth per-tenant metric and alert (completed 2024-05-24)",
+      "Implement query priority queuing (P1 for dashboard, P2 for batch reports)",
+      "Add bulkhead pattern to isolate heavy query tenants from others"
+    ]
+  },
+  {
+    "id": "inc_003",
+    "severity": "medium",
+    "title": "Stale data in real-time dashboards",
+    "status": "resolved",
+    "created_at": "2024-04-10T16:00:00Z",
+    "resolved_at": "2024-04-10T17:20:00Z",
+    "duration_minutes": 80,
+    "affected_services": ["stream-processing", "dashboard-service"],
+    "affected_regions": ["us-east-1", "us-west-2"],
+    "root_cause": "A Flink checkpoint took 18 minutes to complete (normal: 30 seconds) due to a skewed partition in the sessionization job. The skew was caused by a bot generating 12M events under a single user_id, creating an outsized session state. During the checkpoint, the affected Flink task was backpressured, causing downstream aggregation windows to stall. Real-time dashboards showed data that was 15-20 minutes stale.",
+    "timeline": [
+      {"time": "16:00", "event": "Customer reports dashboard showing old data"},
+      {"time": "16:08", "event": "Alert: flink_checkpoint_duration > 5m"},
+      {"time": "16:15", "event": "Identified skewed partition in sessionization job"},
+      {"time": "16:22", "event": "Root cause: single user_id with 12M events in 1 hour"},
+      {"time": "16:30", "event": "Applied per-user event cap (100K/hour) via configuration"},
+      {"time": "16:45", "event": "Checkpoint completed after bot events were rate-limited"},
+      {"time": "17:00", "event": "Flink processing caught up, dashboards showing current data"},
+      {"time": "17:20", "event": "Verified data freshness < 5 seconds, incident resolved"}
+    ],
+    "impact": {
+      "events_delayed": 8500000,
+      "events_lost": 0,
+      "customers_affected": 1200,
+      "sla_breach": false
+    },
+    "action_items": [
+      "Implement per-user event rate limiting at ingestion layer (completed 2024-04-15)",
+      "Add Flink checkpoint duration monitoring with per-partition breakdown",
+      "Design session state eviction for abnormally large sessions",
+      "Add data freshness SLI to dashboard service health endpoint"
+    ]
+  }
+]

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Setup - recursive-llm-ts</title>
+  <meta name="description" content="Set up the interactive demo environment with LocalStack S3, seed data, and example scripts.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1f504;</text></svg>">
+</head>
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo">
+        <span class="logo-icon">R</span>
+        <span>recursive-llm-ts</span>
+      </a>
+      <button class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <nav class="site-nav">
+        <a href="index.html">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API</a>
+        <a href="examples.html">Examples</a>
+        <a href="demo-setup.html" class="active">Demo Setup</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts" class="nav-github">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="docs-layout">
+        <!-- Sidebar -->
+        <aside class="docs-sidebar">
+          <nav>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Setup</div>
+              <a href="#prerequisites" class="sidebar-link active">Prerequisites</a>
+              <a href="#quick-start" class="sidebar-link">Quick Start</a>
+              <a href="#localstack" class="sidebar-link">LocalStack S3</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Run Demos</div>
+              <a href="#demo-local" class="sidebar-link">Local Files</a>
+              <a href="#demo-s3" class="sidebar-link">S3 (LocalStack)</a>
+              <a href="#demo-structured" class="sidebar-link">Structured Extraction</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Seed Data</div>
+              <a href="#seed-data" class="sidebar-link">Included Data</a>
+              <a href="#custom-data" class="sidebar-link">Custom Data</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Reference</div>
+              <a href="#env-vars" class="sidebar-link">Environment Variables</a>
+              <a href="#troubleshooting" class="sidebar-link">Troubleshooting</a>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Content -->
+        <div class="docs-content">
+          <h1>Demo Setup</h1>
+          <p>Run the interactive demos locally with LocalStack for S3 and bundled synthetic data. No AWS account required.</p>
+
+          <div class="callout info">
+            <div class="callout-title">What you'll need</div>
+            <p>Docker (for LocalStack S3), Node.js 16+, Go 1.25+, and an <code>OPENAI_API_KEY</code>. That's it.</p>
+          </div>
+
+          <!-- Prerequisites -->
+          <h2 id="prerequisites">Prerequisites</h2>
+          <table class="env-table">
+            <thead>
+              <tr><th>Dependency</th><th>Required</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>OPENAI_API_KEY</code></td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>API key for OpenAI or any compatible provider</td>
+              </tr>
+              <tr>
+                <td>Docker</td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>For LocalStack S3 (only needed for S3 demos)</td>
+              </tr>
+              <tr>
+                <td>Node.js 16+</td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>Runtime for TypeScript demos</td>
+              </tr>
+              <tr>
+                <td>Go 1.25+</td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>For building the Go binary (or use pre-built)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Quick Start -->
+          <h2 id="quick-start">Quick Start</h2>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># 1. Clone and install
+git clone https://github.com/jbeck018/recursive-llm-ts.git
+cd recursive-llm-ts
+npm install
+
+# 2. Set your API key
+export OPENAI_API_KEY="sk-..."
+
+# 3. Start LocalStack (S3 with auto-seeded demo data)
+docker compose -f demo/docker-compose.yml up -d
+
+# 4. Wait for seed data (~5 seconds)
+docker logs rlm-demo-localstack 2>&1 | tail -20
+
+# 5. Run all demos
+npx ts-node demo/run-demo.ts all</code></pre>
+          </div>
+
+          <p>The demo runner will execute three scenarios in sequence: local file context, S3 file context, and structured extraction from S3.</p>
+
+          <!-- LocalStack -->
+          <h2 id="localstack">LocalStack S3 Setup</h2>
+          <p>The demo uses <a href="https://localstack.cloud/">LocalStack</a> to provide a local S3-compatible API. No AWS account or credentials needed.</p>
+
+          <h3>How it works</h3>
+          <ul>
+            <li>Docker Compose starts LocalStack with <code>s3-latest</code> image</li>
+            <li>An init script (<code>init-localstack.sh</code>) auto-creates a bucket and uploads seed data</li>
+            <li>S3 API is available at <code>http://localhost:4566</code></li>
+            <li>Demo credentials: <code>accessKeyId: 'test'</code>, <code>secretAccessKey: 'test'</code></li>
+          </ul>
+
+          <h3>Verify the bucket</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># List all files in the demo bucket
+aws --endpoint-url=http://localhost:4566 s3 ls s3://rlm-demo-docs/ --recursive
+
+# Read a specific file
+aws --endpoint-url=http://localhost:4566 s3 cp s3://rlm-demo-docs/docs/architecture.md -</code></pre>
+          </div>
+
+          <h3>LocalStack connection details</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Use this config to connect to the demo bucket
+const fileConfig = {
+  type: 's3' as const,
+  path: 'rlm-demo-docs',
+  endpoint: 'http://localhost:4566',
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: 'test',
+    secretAccessKey: 'test',
+  },
+};</code></pre>
+          </div>
+
+          <!-- Demo: Local Files -->
+          <h2 id="demo-local">Demo: Local File Context</h2>
+          <p>Process the seed data directly from the local filesystem. No Docker required for this demo.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash">npx ts-node demo/run-demo.ts local</code></pre>
+          </div>
+
+          <p>This reads all files from <code>demo/seed-data/</code> and asks the LLM to analyze the company's architecture, products, and incidents.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const result = await rlm.completionFromFiles(
+  'Analyze these documents and provide: (1) a summary of what this ' +
+  'company does, (2) their key technical architecture decisions, ' +
+  'and (3) any notable incidents or challenges.',
+  {
+    type: 'local',
+    path: './demo/seed-data',
+    extensions: ['.md', '.json', '.ts', '.csv'],
+    excludePatterns: ['*.test.*'],
+    maxFileSize: 200_000,
+  }
+);</code></pre>
+          </div>
+
+          <!-- Demo: S3 -->
+          <h2 id="demo-s3">Demo: S3 File Context (LocalStack)</h2>
+          <p>Same data, but accessed through the S3 API via LocalStack. Demonstrates that S3FileStorage works identically to local files.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># Make sure LocalStack is running first
+docker compose -f demo/docker-compose.yml up -d
+
+npx ts-node demo/run-demo.ts s3</code></pre>
+          </div>
+
+          <!-- Demo: Structured -->
+          <h2 id="demo-structured">Demo: Structured Extraction from S3</h2>
+          <p>Extract typed data from S3 files using a Zod schema. Demonstrates parallel structured extraction.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash">npx ts-node demo/run-demo.ts structured</code></pre>
+          </div>
+
+          <p>This extracts a structured review analysis from the JSON files in the S3 bucket:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const schema = z.object({
+  overallSentiment: z.number().min(1).max(5),
+  totalReviews: z.number(),
+  topStrengths: z.array(z.string()),
+  topWeaknesses: z.array(z.string()),
+  productBreakdown: z.array(z.object({
+    product: z.string(),
+    avgRating: z.number(),
+    reviewCount: z.number(),
+    summary: z.string(),
+  })),
+  recommendations: z.array(z.string()),
+});
+
+const result = await rlm.structuredCompletionFromFiles(
+  'Analyze all product reviews and extract structured insights',
+  { type: 's3', path: 'rlm-demo-docs', prefix: 'data/', ... },
+  schema,
+  { parallelExecution: true }
+);</code></pre>
+          </div>
+
+          <!-- Seed Data -->
+          <h2 id="seed-data">Included Seed Data</h2>
+          <p>The <code>demo/seed-data/</code> directory contains synthetic data for a fictional "Acme Analytics Platform":</p>
+
+          <table class="config-table">
+            <thead>
+              <tr><th>File</th><th>Format</th><th>Size</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>docs/architecture.md</code></td>
+                <td>Markdown</td>
+                <td>~4KB</td>
+                <td>Full system architecture: ingestion, streaming, storage tiers, query engine</td>
+              </tr>
+              <tr>
+                <td><code>docs/api-reference.md</code></td>
+                <td>Markdown</td>
+                <td>~4KB</td>
+                <td>REST API documentation with endpoints, parameters, and examples</td>
+              </tr>
+              <tr>
+                <td><code>docs/getting-started.md</code></td>
+                <td>Markdown</td>
+                <td>~3KB</td>
+                <td>Onboarding guide with SDK setup and first event</td>
+              </tr>
+              <tr>
+                <td><code>data/product-reviews.json</code></td>
+                <td>JSON</td>
+                <td>~6KB</td>
+                <td>10 detailed product reviews with ratings, tags, and analysis</td>
+              </tr>
+              <tr>
+                <td><code>data/quarterly-metrics.csv</code></td>
+                <td>CSV</td>
+                <td>~4KB</td>
+                <td>6 months of revenue, customers, churn by region and product</td>
+              </tr>
+              <tr>
+                <td><code>data/incident-reports.json</code></td>
+                <td>JSON</td>
+                <td>~5KB</td>
+                <td>3 production incident post-mortems with timelines and action items</td>
+              </tr>
+              <tr>
+                <td><code>reports/q2-2024-report.md</code></td>
+                <td>Markdown</td>
+                <td>~3KB</td>
+                <td>Quarterly business report with financials, product updates, and risks</td>
+              </tr>
+              <tr>
+                <td><code>code/analytics-service.ts</code></td>
+                <td>TypeScript</td>
+                <td>~5KB</td>
+                <td>Event processing service with validation, rate limiting, and Kafka publishing</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>Total seed data: ~34KB across 8 files. All data is synthetic &mdash; no licensing concerns.</p>
+
+          <!-- Custom Data -->
+          <h2 id="custom-data">Using Custom Data</h2>
+          <p>Replace or add files in <code>demo/seed-data/</code> and restart LocalStack:</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># Add your own files
+cp ~/my-project/docs/*.md demo/seed-data/docs/
+
+# Restart LocalStack to re-seed
+docker compose -f demo/docker-compose.yml down
+docker compose -f demo/docker-compose.yml up -d
+
+# Verify your files are in S3
+aws --endpoint-url=http://localhost:4566 s3 ls s3://rlm-demo-docs/ --recursive</code></pre>
+          </div>
+
+          <!-- Environment Variables -->
+          <h2 id="env-vars">Environment Variables</h2>
+
+          <table class="env-table">
+            <thead>
+              <tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>OPENAI_API_KEY</code></td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>&mdash;</td>
+                <td>API key for LLM provider. This is the only variable you must set.</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout success">
+            <div class="callout-title">No AWS credentials needed</div>
+            <p>LocalStack uses dummy credentials (<code>test</code>/<code>test</code>) hardcoded in the demo scripts. You do not need <code>AWS_ACCESS_KEY_ID</code> or <code>AWS_SECRET_ACCESS_KEY</code> for the demos.</p>
+          </div>
+
+          <h3>Optional: Full .env for all features</h3>
+          <p>If you want to test all features beyond the demo (real S3, observability, etc.), here's the complete set:</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># Required
+OPENAI_API_KEY=sk-...
+
+# Optional: Real S3 (instead of LocalStack)
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_SESSION_TOKEN=...              # Only for temporary credentials
+AWS_REGION=us-east-1
+
+# Optional: Azure OpenAI
+AZURE_API_KEY=...
+
+# Optional: Observability
+RLM_DEBUG=1                        # Debug logging
+OTEL_EXPORTER_OTLP_ENDPOINT=...   # OpenTelemetry endpoint
+LANGFUSE_PUBLIC_KEY=pk-...         # Langfuse public key
+LANGFUSE_SECRET_KEY=sk-...         # Langfuse secret key
+LANGFUSE_HOST=https://cloud.langfuse.com
+
+# Optional: Binary override
+RLM_GO_BINARY=/path/to/rlm-go</code></pre>
+          </div>
+
+          <!-- Troubleshooting -->
+          <h2 id="troubleshooting">Troubleshooting</h2>
+
+          <h3>LocalStack won't start</h3>
+          <ul>
+            <li>Ensure Docker is running: <code>docker ps</code></li>
+            <li>Check port 4566 isn't in use: <code>lsof -i :4566</code></li>
+            <li>View logs: <code>docker logs rlm-demo-localstack</code></li>
+          </ul>
+
+          <h3>S3 demo returns "bucket not found"</h3>
+          <ul>
+            <li>Wait a few seconds after <code>docker compose up</code> for the init script to complete</li>
+            <li>Check the init script ran: <code>docker logs rlm-demo-localstack 2>&1 | grep "Demo bucket ready"</code></li>
+          </ul>
+
+          <h3>Go binary not found</h3>
+          <ul>
+            <li>Run <code>npm install</code> (the postinstall script builds the binary)</li>
+            <li>Or build manually: <code>cd go && go build -o ../bin/rlm-go ./cmd/rlm</code></li>
+          </ul>
+
+          <h3>Cleanup</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># Stop and remove LocalStack container
+docker compose -f demo/docker-compose.yml down</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="demo-setup.html">Demo Setup</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts">GitHub</a>
+      </div>
+      <p class="footer-copy">
+        MIT License &mdash; Based on <a href="https://alexzhang13.github.io/blog/2025/rlm/">Recursive Language Models</a> by Alex Zhang &amp; Omar Khattab
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>recursive-llm-ts - Unbounded Context Processing for LLMs</title>
+  <meta name="description" content="Process 10M+ tokens without degradation using recursive decomposition. TypeScript/Go hybrid with structured outputs, file storage, and observability.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1f504;</text></svg>">
+</head>
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo">
+        <span class="logo-icon">R</span>
+        <span>recursive-llm-ts</span>
+      </a>
+      <button class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <nav class="site-nav">
+        <a href="index.html" class="active">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API</a>
+        <a href="examples.html">Examples</a>
+        <a href="demo-setup.html">Demo Setup</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts" class="nav-github">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-badge fade-in">
+          v4.4.1 &mdash; File Storage &amp; S3 Support
+        </div>
+        <h1 class="fade-in fade-in-delay-1">
+          Process <span class="gradient-text">Unbounded Context</span><br>
+          with Recursive LLMs
+        </h1>
+        <p class="hero-subtitle fade-in fade-in-delay-2">
+          TypeScript/Go hybrid that recursively decomposes massive documents for LLM processing.
+          Extract structured data from 10M+ tokens without degradation.
+        </p>
+        <div class="hero-actions fade-in fade-in-delay-3">
+          <a href="guide.html" class="btn btn-primary">Get Started</a>
+          <a href="api.html" class="btn btn-secondary">API Reference</a>
+          <a href="examples.html" class="btn btn-secondary">Live Demo</a>
+        </div>
+        <div class="hero-install fade-in fade-in-delay-4">
+          <div class="install-cmd">
+            <span class="prompt">$</span>
+            <span class="cmd-text">npm install recursive-llm-ts</span>
+            <button class="copy-btn" aria-label="Copy">&#128203;</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="section-sm section-alt">
+      <div class="container">
+        <div class="stats-bar">
+          <div class="stat-item">
+            <div class="stat-value">50x</div>
+            <div class="stat-label">Faster Startup</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">3x</div>
+            <div class="stat-label">Less Memory</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">10M+</div>
+            <div class="stat-label">Tokens</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">100+</div>
+            <div class="stat-label">LLM Providers</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Python Deps</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-header">
+          <h2>Built for Production</h2>
+          <p>Everything you need to process massive contexts with LLMs, from a single npm package.</p>
+        </div>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon green">&#9889;</div>
+            <h3>Pure Go Backend</h3>
+            <p>No Python runtime required. The native Go binary handles recursive decomposition, REPL execution, and LLM orchestration with minimal overhead.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon blue">&#127919;</div>
+            <h3>Structured Outputs</h3>
+            <p>Extract typed data using Zod schemas. Supports nested objects, arrays, enums, and constraints with automatic validation and retry logic.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon purple">&#128640;</div>
+            <h3>Parallel Execution</h3>
+            <p>Complex schemas are automatically decomposed and processed in parallel with goroutines. 3-5x faster extraction for multi-field schemas.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon yellow">&#128065;</div>
+            <h3>Observability</h3>
+            <p>Built-in OpenTelemetry tracing, Langfuse integration, and debug logging. Track every LLM call, REPL execution, and recursive step.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon blue">&#128193;</div>
+            <h3>File Storage Context</h3>
+            <p>Process local directories or S3-compatible buckets as LLM context. Recursive traversal, filtering, and automatic context formatting.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon green">&#129504;</div>
+            <h3>Meta-Agent</h3>
+            <p>Automatically optimize vague queries before processing. The meta-agent rewrites queries for better recursive decomposition.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon purple">&#127760;</div>
+            <h3>Provider Agnostic</h3>
+            <p>Works with OpenAI, Anthropic, Azure, Bedrock, Ollama, and any OpenAI-compatible API. Use LiteLLM proxy for 100+ providers.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon yellow">&#128230;</div>
+            <h3>Simple Distribution</h3>
+            <p>Single npm package with auto-building Go binary. Pre-built binaries for common platforms. Docker-ready with multi-stage builds.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section section-alt" id="how-it-works">
+      <div class="container">
+        <div class="two-col">
+          <div class="two-col-text">
+            <h2>How It Works</h2>
+            <p>
+              Based on the 2025 MIT paper <a href="https://alexzhang13.github.io/blog/2025/rlm/">"Recursive Language Models"</a> by Alex Zhang and Omar Khattab, RLM solves the fundamental context length limitation of LLMs.
+            </p>
+            <p>
+              Instead of truncating or failing on large documents, RLM recursively decomposes the problem:
+            </p>
+            <ul>
+              <li>Large context is split into manageable chunks</li>
+              <li>LLM writes JavaScript code to analyze each chunk</li>
+              <li>Code is executed in a sandboxed REPL (goja engine)</li>
+              <li>Results are recursively combined up the tree</li>
+              <li>For structured outputs, schemas are decomposed into subtasks</li>
+              <li>Parallel goroutines process independent fields simultaneously</li>
+              <li>Validation with retry ensures schema compliance</li>
+            </ul>
+          </div>
+          <div>
+            <div class="arch-container">
+              <div class="arch-flow">
+                <div class="arch-node ts">
+                  <div>
+                    <div class="arch-node-label">TypeScript API</div>
+                    <div class="arch-node-desc">RLM class, Zod schema conversion, file context building</div>
+                  </div>
+                </div>
+                <div class="arch-arrow">&#8595; spawn binary, JSON via stdin</div>
+                <div class="arch-node go">
+                  <div>
+                    <div class="arch-node-label">Go Binary</div>
+                    <div class="arch-node-desc">Recursive engine, JS REPL, meta-agent, observability</div>
+                  </div>
+                </div>
+                <div class="arch-arrow">&#8595; OpenAI-compatible API</div>
+                <div class="arch-node api">
+                  <div>
+                    <div class="arch-node-label">LLM Provider</div>
+                    <div class="arch-node-desc">OpenAI, Anthropic, Azure, Bedrock, local models</div>
+                  </div>
+                </div>
+                <div class="arch-arrow">&#8593; JSON response + trace events</div>
+                <div class="arch-node result">
+                  <div>
+                    <div class="arch-node-label">Typed Result</div>
+                    <div class="arch-node-desc">Structured data, stats, trace events</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section class="section" id="quickstart">
+      <div class="container">
+        <div class="section-header">
+          <h2>Quick Start</h2>
+          <p>Get up and running in under a minute.</p>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="basic">Basic Completion</button>
+          <button class="tab-btn" data-tab="structured">Structured Output</button>
+          <button class="tab-btn" data-tab="files">File Context</button>
+          <button class="tab-btn" data-tab="advanced">Advanced</button>
+        </div>
+
+        <div class="tab-panel active" data-panel="basic">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  max_iterations: 15,
+});
+
+// Process a 100K+ token document
+const result = await rlm.completion(
+  'What are the key findings in this research paper?',
+  longResearchPaper
+);
+
+console.log(result.result);
+console.log('Stats:', result.stats);</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="structured">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+import { z } from 'zod';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+const schema = z.object({
+  sentiment: z.number().min(1).max(5),
+  summary: z.string(),
+  topics: z.array(z.enum(['pricing', 'features', 'support'])),
+  keyPhrases: z.array(z.object({
+    phrase: z.string(),
+    weight: z.number(),
+  })),
+});
+
+const result = await rlm.structuredCompletion(
+  'Analyze the sentiment and extract key information',
+  callTranscript,
+  schema,
+  { parallelExecution: true }
+);
+
+// result.result is fully typed!
+console.log(result.result.sentiment);     // number
+console.log(result.result.keyPhrases);    // Array&lt;{phrase, weight}&gt;</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="files">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+// Local files
+const result = await rlm.completionFromFiles(
+  'Summarize the architecture of this codebase',
+  {
+    type: 'local',
+    path: '/path/to/project/src',
+    extensions: ['.ts', '.tsx'],
+    excludePatterns: ['*.test.ts'],
+    maxFileSize: 100_000,
+  }
+);
+
+// S3 bucket
+const s3Result = await rlm.completionFromFiles(
+  'What are the key findings?',
+  {
+    type: 's3',
+    path: 'my-bucket',
+    prefix: 'reports/2024/',
+    extensions: ['.md', '.txt'],
+    region: 'us-west-2',
+  }
+);</code></pre>
+          </div>
+        </div>
+
+        <div class="tab-panel" data-panel="advanced">
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+
+  // Meta-agent optimizes vague queries
+  meta_agent: {
+    enabled: true,
+    model: 'gpt-4o',
+  },
+
+  // Full observability
+  observability: {
+    debug: true,
+    trace_enabled: true,
+    trace_endpoint: 'localhost:4317',
+    langfuse_enabled: true,
+    langfuse_public_key: process.env.LANGFUSE_PUBLIC_KEY,
+    langfuse_secret_key: process.env.LANGFUSE_SECRET_KEY,
+  }
+});
+
+const result = await rlm.completion('what happened?', transcript);
+
+// Access trace events
+const events = rlm.getTraceEvents();
+for (const e of events) {
+  console.log(`[${e.type}] ${e.name}`, e.attributes);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Go Module -->
+    <section class="section section-alt" id="go-module">
+      <div class="container">
+        <div class="two-col">
+          <div>
+            <div class="code-block">
+              <div class="code-header">
+                <span class="code-lang">Go</span>
+                <button class="code-copy">Copy</button>
+              </div>
+              <pre><code data-lang="go">package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/jbeck018/recursive-llm-ts/go/rlm"
+)
+
+func main() {
+    engine := rlm.New("gpt-4o-mini", rlm.Config{
+        MaxDepth:      5,
+        MaxIterations: 30,
+        APIKey:        os.Getenv("OPENAI_API_KEY"),
+        MetaAgent: &rlm.MetaAgentConfig{
+            Enabled: true,
+        },
+        Observability: &rlm.ObservabilityConfig{
+            Debug: true,
+        },
+    })
+
+    answer, stats, err := engine.Completion(
+        "Summarize this document",
+        largeDocument,
+    )
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+
+    fmt.Printf("Answer: %s\n", answer)
+    fmt.Printf("LLM calls: %d\n", stats.LlmCalls)
+}</code></pre>
+            </div>
+          </div>
+          <div class="two-col-text">
+            <h2>Use as a Go Module</h2>
+            <p>
+              The Go implementation is also available as a standalone library for Go projects.
+              Import it directly for maximum performance without the TypeScript layer.
+            </p>
+            <ul>
+              <li>Full RLM engine with recursive decomposition</li>
+              <li>Structured output with JSON Schema validation</li>
+              <li>Meta-agent query optimization</li>
+              <li>OpenTelemetry and Langfuse observability</li>
+              <li>JavaScript REPL via goja engine</li>
+              <li>Cross-compile for any platform</li>
+            </ul>
+            <div style="margin-top: 20px;">
+              <div class="code-block">
+                <div class="code-header">
+                  <span class="code-lang">Bash</span>
+                  <button class="code-copy">Copy</button>
+                </div>
+                <pre><code data-lang="bash">go get github.com/jbeck018/recursive-llm-ts/go</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section">
+      <div class="container" style="text-align: center;">
+        <h2 style="font-size: 2rem; margin-bottom: 16px;">Ready to process unbounded context?</h2>
+        <p style="color: var(--text-secondary); max-width: 480px; margin: 0 auto 32px;">
+          Install the package, set your API key, and start processing documents of any size.
+        </p>
+        <div class="hero-actions">
+          <a href="guide.html" class="btn btn-primary">Read the Guide</a>
+          <a href="https://github.com/jbeck018/recursive-llm-ts" class="btn btn-secondary">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="demo-setup.html">Demo Setup</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts">GitHub</a>
+        <a href="https://www.npmjs.com/package/recursive-llm-ts">npm</a>
+      </div>
+      <p class="footer-copy">
+        MIT License &mdash; Based on <a href="https://alexzhang13.github.io/blog/2025/rlm/">Recursive Language Models</a> by Alex Zhang &amp; Omar Khattab
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
