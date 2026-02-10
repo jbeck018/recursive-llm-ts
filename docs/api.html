@@ -46,6 +46,7 @@
               <a href="#rlm-class" class="sidebar-link active">RLM</a>
               <a href="#coordinator-class" class="sidebar-link">RLMAgentCoordinator</a>
               <a href="#file-context-builder" class="sidebar-link">FileContextBuilder</a>
+              <a href="#rlm-builder" class="sidebar-link">RLMBuilder</a>
             </div>
             <div class="sidebar-section">
               <div class="sidebar-title">Configuration</div>
@@ -62,6 +63,23 @@
               <a href="#trace-event" class="sidebar-link">TraceEvent</a>
               <a href="#file-storage-result" class="sidebar-link">FileStorageResult</a>
               <a href="#s3-storage-error" class="sidebar-link">S3StorageError</a>
+              <a href="#cache-config" class="sidebar-link">CacheConfig</a>
+              <a href="#retry-config" class="sidebar-link">RetryConfig</a>
+              <a href="#fallback-config" class="sidebar-link">FallbackConfig</a>
+              <a href="#stream-chunk" class="sidebar-link">StreamChunk</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Errors</div>
+              <a href="#error-hierarchy" class="sidebar-link">Error Hierarchy</a>
+              <a href="#classify-error" class="sidebar-link">classifyError()</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Utilities</div>
+              <a href="#streaming-api" class="sidebar-link">Streaming</a>
+              <a href="#cache-api" class="sidebar-link">Caching</a>
+              <a href="#retry-api" class="sidebar-link">Retry</a>
+              <a href="#events-api" class="sidebar-link">Events</a>
+              <a href="#config-validation-api" class="sidebar-link">Config Validation</a>
             </div>
             <div class="sidebar-section">
               <div class="sidebar-title">Environment</div>
@@ -288,6 +306,237 @@
             </div>
           </div>
 
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">streamCompletion(query, context, signal?)</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>Stream a completion as an async iterable of chunks. Each chunk contains either text or metadata.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>query</code></td>
+                    <td><code>string</code></td>
+                    <td>The question or task to perform</td>
+                  </tr>
+                  <tr>
+                    <td><code>context</code></td>
+                    <td><code>string</code></td>
+                    <td>The document/context to process</td>
+                  </tr>
+                  <tr>
+                    <td><code>signal</code></td>
+                    <td><code>AbortSignal</code></td>
+                    <td>Optional abort signal for cancellation</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;RLMStream&lt;string&gt;&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">streamStructuredCompletion&lt;T&gt;(query, context, schema, options?)</span>
+              <span class="api-badge async">async</span>
+              <span class="api-badge generic">generic</span>
+            </div>
+            <div class="api-method-body">
+              <p>Stream a structured completion. Returns partial objects as they are built.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;RLMStream&lt;T&gt;&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">batchCompletion(items, options?)</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>Process multiple completion requests concurrently with configurable concurrency limits.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>items</code></td>
+                    <td><code>Array&lt;{query, context}&gt;</code></td>
+                    <td>Array of query/context pairs</td>
+                  </tr>
+                  <tr>
+                    <td><code>options.concurrency</code></td>
+                    <td><code>number</code></td>
+                    <td>Max parallel requests (default: 3)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;RLMCompletionResult[]&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">on(event, handler)</span>
+            </div>
+            <div class="api-method-body">
+              <p>Subscribe to lifecycle events. Available events: <code>llm_call</code>, <code>llm_response</code>, <code>error</code>, <code>cache</code>, <code>retry</code>, <code>completion_start</code>, <code>completion_end</code>, <code>validation_retry</code>, <code>recursion</code>, <code>meta_agent</code>.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>void</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">off(event, handler)</span>
+            </div>
+            <div class="api-method-body">
+              <p>Remove a previously registered event handler.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>void</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">once(event, handler)</span>
+            </div>
+            <div class="api-method-body">
+              <p>Subscribe to an event for a single emission only.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>void</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">validate()</span>
+            </div>
+            <div class="api-method-body">
+              <p>Validate the current configuration and return issues with severity levels.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>ValidationResult</code> &mdash; <code>{ valid: boolean, issues: ValidationIssue[] }</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">getCacheStats()</span>
+            </div>
+            <div class="api-method-body">
+              <p>Get current cache statistics including hits, misses, hit rate, and eviction count.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>CacheStats | null</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">clearCache()</span>
+            </div>
+            <div class="api-method-body">
+              <p>Clear all cached responses.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>void</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">formatResult(result)</span>
+            </div>
+            <div class="api-method-body">
+              <p>Create a result formatter for pretty printing, JSON export, or Markdown generation.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>RLMResultFormatter</code> &mdash; with <code>.prettyStats()</code>, <code>.toJSON()</code>, <code>.toMarkdown()</code> methods
+              </div>
+            </div>
+          </div>
+
+          <h3>Static Factory Methods</h3>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">RLM.fromEnv(model?)</span>
+              <span class="api-badge">static</span>
+            </div>
+            <div class="api-method-body">
+              <p>Create an RLM instance using environment variables for configuration. Auto-detects <code>OPENAI_API_KEY</code>, <code>RLM_DEBUG</code>, etc.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>RLM</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">RLM.withDebug(model?)</span>
+              <span class="api-badge">static</span>
+            </div>
+            <div class="api-method-body">
+              <p>Quick setup with debug logging enabled. Uses environment variables for API key.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>RLM</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">RLM.forAzure(model, endpoint, apiKey)</span>
+              <span class="api-badge">static</span>
+            </div>
+            <div class="api-method-body">
+              <p>Create an RLM instance pre-configured for Azure OpenAI deployments.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>RLM</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">RLM.builder()</span>
+              <span class="api-badge">static</span>
+            </div>
+            <div class="api-method-body">
+              <p>Create a fluent builder for step-by-step configuration. See <a href="#rlm-builder">RLMBuilder</a>.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>RLMBuilder</code>
+              </div>
+            </div>
+          </div>
+
           <!-- RLMAgentCoordinator -->
           <h2 id="coordinator-class">RLMAgentCoordinator</h2>
           <p>Advanced coordinator for complex multi-field schema extraction. Wraps RLM with schema decomposition and parallel processing.</p>
@@ -394,6 +643,28 @@
             </div>
           </div>
 
+          <!-- RLMBuilder -->
+          <h2 id="rlm-builder">RLMBuilder</h2>
+          <p>Fluent builder for constructing RLM instances with complex configuration. All methods return <code>this</code> for chaining.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">class RLMBuilder {
+  model(model: string): this;
+  apiKey(key: string): this;
+  apiBase(base: string): this;
+  maxDepth(depth: number): this;
+  maxIterations(iterations: number): this;
+  enableMetaAgent(model?: string): this;
+  enableDebug(): this;
+  enableCache(config?: Partial&lt;CacheConfig&gt;): this;
+  enableRetry(config?: Partial&lt;RetryConfig&gt;): this;
+  build(): RLM;
+}</code></pre>
+          </div>
+
           <!-- Configuration Types -->
           <h2 id="rlm-config">RLMConfig</h2>
           <p>Configuration object for the RLM constructor.</p>
@@ -475,10 +746,22 @@
                 <td>Request timeout in seconds</td>
               </tr>
               <tr>
-                <td><code>[key: string]</code></td>
-                <td><code>any</code></td>
+                <td><code>cache</code></td>
+                <td><code>CacheConfig</code></td>
                 <td>&mdash;</td>
-                <td>Any additional LiteLLM parameters</td>
+                <td>Response caching configuration</td>
+              </tr>
+              <tr>
+                <td><code>retry</code></td>
+                <td><code>RetryConfig</code></td>
+                <td>&mdash;</td>
+                <td>Retry configuration with backoff</td>
+              </tr>
+              <tr>
+                <td><code>fallback</code></td>
+                <td><code>FallbackConfig</code></td>
+                <td>&mdash;</td>
+                <td>Multi-provider fallback chain</td>
               </tr>
             </tbody>
           </table>
@@ -761,6 +1044,213 @@
 // 'KEY_NOT_FOUND'    - Object not found
 // 'NETWORK_ERROR'    - Connection failed
 // 'REGION_MISMATCH'  - Wrong region configured</code></pre>
+          </div>
+
+          <!-- New Types -->
+          <h2 id="cache-config">CacheConfig</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface CacheConfig {
+  enabled: boolean;
+  maxEntries?: number;   // Default: 1000
+  ttl?: number;          // TTL in ms (default: 3600000 = 1h)
+  backend?: 'memory' | 'file';
+  directory?: string;    // For file backend
+}</code></pre>
+          </div>
+
+          <h2 id="retry-config">RetryConfig</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface RetryConfig {
+  maxRetries?: number;                       // Default: 3
+  baseDelay?: number;                        // Base delay in ms (default: 1000)
+  maxDelay?: number;                         // Max delay cap in ms (default: 30000)
+  backoff?: 'exponential' | 'linear' | 'fixed'; // Default: 'exponential'
+  jitter?: boolean;                          // Add randomness (default: true)
+  onRetry?: (attempt: number, error: Error, delay: number) =&gt; void;
+}</code></pre>
+          </div>
+
+          <h2 id="fallback-config">FallbackConfig</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface FallbackConfig {
+  models: string[];  // Ordered list of model fallbacks
+}</code></pre>
+          </div>
+
+          <h2 id="stream-chunk">StreamChunk&lt;T&gt;</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">type StreamChunk&lt;T&gt; =
+  | { type: 'text'; text: string; timestamp: number }
+  | { type: 'partial_object'; object: Partial&lt;T&gt;; timestamp: number }
+  | { type: 'metadata'; stats: RLMStats; timestamp: number }
+  | { type: 'error'; error: Error; timestamp: number }
+  | { type: 'done'; stats: RLMStats; timestamp: number };</code></pre>
+          </div>
+
+          <!-- Error Hierarchy -->
+          <h2 id="error-hierarchy">Error Hierarchy</h2>
+          <p>All errors extend <code>RLMError</code> with structured metadata.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">class RLMError extends Error {
+  code: string;
+  retryable: boolean;
+  suggestion?: string;
+  context?: Record&lt;string, unknown&gt;;
+}
+
+class RLMValidationError extends RLMError { field?: string; }
+class RLMRateLimitError extends RLMError  { retryAfter?: number; }
+class RLMTimeoutError extends RLMError    { timeout?: number; }
+class RLMProviderError extends RLMError   { provider?: string; statusCode?: number; }
+class RLMBinaryError extends RLMError     { binaryPath?: string; }
+class RLMConfigError extends RLMError     { }
+class RLMSchemaError extends RLMError     { }
+class RLMAbortError extends RLMError      { }</code></pre>
+          </div>
+
+          <h2 id="classify-error">classifyError()</h2>
+          <p>Auto-classify raw errors into the appropriate RLM error type based on error message and context.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">function classifyError(
+  error: unknown,
+  context?: { binaryPath?: string; provider?: string }
+): RLMError;
+
+// Examples:
+classifyError(new Error('rate limit exceeded'));
+// =&gt; RLMRateLimitError
+
+classifyError(new Error('ENOENT'), { binaryPath: '/bin/rlm-go' });
+// =&gt; RLMBinaryError</code></pre>
+          </div>
+
+          <!-- Streaming API -->
+          <h2 id="streaming-api">RLMStream&lt;T&gt;</h2>
+          <p>Async iterable stream for consuming completions in real-time.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">class RLMStream&lt;T&gt; implements AsyncIterable&lt;StreamChunk&lt;T&gt;&gt; {
+  // Producer methods
+  push(chunk: StreamChunk&lt;T&gt;): void;
+  pushError(error: Error): void;
+  complete(stats: RLMStats): void;
+
+  // Consumer methods
+  toText(): Promise&lt;string&gt;;      // Collect all text chunks
+  toObject(): Promise&lt;T | null&gt;;   // Get final structured object
+
+  // AsyncIterable
+  [Symbol.asyncIterator](): AsyncIterator&lt;StreamChunk&lt;T&gt;&gt;;
+}</code></pre>
+          </div>
+
+          <!-- Cache API -->
+          <h2 id="cache-api">Cache API</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface CacheStats {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  size: number;
+  evictions: number;
+}
+
+class MemoryCache { /* LRU + TTL in-memory cache */ }
+class FileCache   { /* Persistent file-based cache */ }</code></pre>
+          </div>
+
+          <!-- Events API -->
+          <h2 id="events-api">RLMEventEmitter</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">type RLMEventMap = {
+  llm_call: { model: string; queryLength: number; contextLength: number };
+  llm_response: { model: string; tokensUsed: number; duration: number };
+  error: { error: Error; operation: string };
+  cache: { action: 'hit' | 'miss' | 'set' | 'evict' };
+  retry: { attempt: number; error: Error; delay: number };
+  completion_start: { model: string; query: string; contextLength: number };
+  completion_end: { model: string; duration: number; stats: RLMStats };
+  validation_retry: { field: string; attempt: number; error: string };
+  recursion: { depth: number; chunkIndex: number; totalChunks: number };
+  meta_agent: { originalQuery: string; optimizedQuery: string };
+};</code></pre>
+          </div>
+
+          <!-- Config Validation API -->
+          <h2 id="config-validation-api">Config Validation</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">function validateConfig(config: Partial&lt;RLMConfig&gt;): ValidationResult;
+function assertValidConfig(config: Partial&lt;RLMConfig&gt;): void; // throws RLMConfigError
+
+interface ValidationResult {
+  valid: boolean;
+  issues: ValidationIssue[];
+}
+
+interface ValidationIssue {
+  level: 'error' | 'warning' | 'info';
+  field: string;
+  message: string;
+}</code></pre>
+          </div>
+
+          <!-- Retry API -->
+          <h2 id="retry-api">Retry Utilities</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">function withRetry&lt;T&gt;(
+  fn: () =&gt; Promise&lt;T&gt;,
+  config?: RetryConfig,
+  signal?: AbortSignal
+): Promise&lt;T&gt;;
+
+function withFallback&lt;T&gt;(
+  fn: (model: string) =&gt; Promise&lt;T&gt;,
+  fallbackConfig: FallbackConfig,
+  retryConfig?: RetryConfig
+): Promise&lt;T &amp; { _usedModel: string }&gt;;</code></pre>
           </div>
 
           <!-- Environment Variables -->

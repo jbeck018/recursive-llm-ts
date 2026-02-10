@@ -57,6 +57,17 @@
               <a href="#observability" class="sidebar-link">Observability</a>
             </div>
             <div class="sidebar-section">
+              <div class="sidebar-title">Advanced Features</div>
+              <a href="#streaming" class="sidebar-link">Streaming</a>
+              <a href="#caching" class="sidebar-link">Caching</a>
+              <a href="#retry-resilience" class="sidebar-link">Retry &amp; Resilience</a>
+              <a href="#error-handling" class="sidebar-link">Error Handling</a>
+              <a href="#events" class="sidebar-link">Events</a>
+              <a href="#builder-api" class="sidebar-link">Builder API</a>
+              <a href="#batch-operations" class="sidebar-link">Batch Operations</a>
+              <a href="#config-validation" class="sidebar-link">Config Validation</a>
+            </div>
+            <div class="sidebar-section">
               <div class="sidebar-title">Deployment</div>
               <a href="#providers" class="sidebar-link">LLM Providers</a>
               <a href="#docker" class="sidebar-link">Docker</a>
@@ -362,6 +373,281 @@ for (const e of events) {
   // [llm_call] gpt-4o-mini {tokens: 1247, duration_ms: 2341}
   // [span_end] rlm.completion {total_duration_ms: 5218}
 }</code></pre>
+          </div>
+
+          <!-- Advanced Features -->
+          <h2 id="streaming">Streaming</h2>
+          <p>Stream completions in real-time using async iterables. Supports both text and structured object streaming with AbortController integration.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Stream text tokens
+const stream = await rlm.streamCompletion(
+  'Summarize this document',
+  longDocument
+);
+
+for await (const chunk of stream) {
+  if (chunk.type === 'text') {
+    process.stdout.write(chunk.text);
+  }
+}
+
+// Collect all text at once
+const text = await stream.toText();
+
+// Stream structured objects
+const objStream = await rlm.streamStructuredCompletion(
+  'Extract key info', context, schema
+);
+const result = await objStream.toObject();
+
+// With abort support
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 30000);
+const stream2 = await rlm.streamCompletion(
+  'Summarize', doc, controller.signal
+);</code></pre>
+          </div>
+
+          <h2 id="caching">Caching</h2>
+          <p>Enable response caching to avoid redundant LLM calls. Two backends available: in-memory (LRU with TTL) and file-based persistent cache.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  cache: {
+    enabled: true,
+    maxEntries: 1000,        // LRU eviction limit
+    ttl: 3600000,            // 1 hour TTL
+    backend: 'memory',       // or 'file'
+    directory: '.rlm-cache', // for file backend
+  },
+});
+
+// First call hits the LLM
+const result1 = await rlm.completion('Summarize', doc);
+console.log(result1.cached); // false
+
+// Second identical call returns from cache
+const result2 = await rlm.completion('Summarize', doc);
+console.log(result2.cached); // true
+
+// Check cache stats
+const stats = rlm.getCacheStats();
+console.log(stats); // { hits: 1, misses: 1, hitRate: 0.5, ... }
+
+// Clear cache when needed
+rlm.clearCache();</code></pre>
+          </div>
+
+          <h2 id="retry-resilience">Retry &amp; Resilience</h2>
+          <p>Built-in retry logic with multiple backoff strategies. Rate-limit aware with automatic delay adjustment. Multi-provider fallback chains for high availability.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  retry: {
+    maxRetries: 3,
+    baseDelay: 1000,
+    backoff: 'exponential', // or 'linear', 'fixed'
+    jitter: true,
+    onRetry: (attempt, error, delay) => {
+      console.log(`Retry ${attempt} after ${delay}ms: ${error.message}`);
+    },
+  },
+  fallback: {
+    models: ['gpt-4o-mini', 'gpt-4o', 'claude-sonnet-4-20250514'],
+  },
+});
+
+// Standalone retry utility
+import { withRetry, withFallback } from 'recursive-llm-ts';
+
+const result = await withRetry(
+  () => fetch('https://api.example.com/data'),
+  { maxRetries: 3, backoff: 'exponential' }
+);</code></pre>
+          </div>
+
+          <h2 id="error-handling">Error Handling</h2>
+          <p>Structured error hierarchy with 9 typed error classes. Each error includes a code, retryability flag, and an actionable suggestion for resolution.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import {
+  RLMError,
+  RLMValidationError,
+  RLMRateLimitError,
+  RLMTimeoutError,
+  RLMProviderError,
+  RLMBinaryError,
+  RLMConfigError,
+  RLMSchemaError,
+  RLMAbortError,
+  classifyError,
+} from 'recursive-llm-ts';
+
+try {
+  const result = await rlm.completion('query', context);
+} catch (err) {
+  if (err instanceof RLMRateLimitError) {
+    console.log(`Rate limited. Retry after: ${err.retryAfter}s`);
+  } else if (err instanceof RLMValidationError) {
+    console.log(`Schema validation failed: ${err.field}`);
+    console.log(`Suggestion: ${err.suggestion}`);
+  } else if (err instanceof RLMTimeoutError) {
+    console.log(`Timed out after ${err.timeout}ms`);
+  } else if (err instanceof RLMError) {
+    console.log(`RLM error [${err.code}]: ${err.message}`);
+    console.log(`Retryable: ${err.retryable}`);
+  }
+}
+
+// Auto-classify raw errors
+const classified = classifyError(new Error('connection timeout'));
+console.log(classified instanceof RLMTimeoutError); // true</code></pre>
+          </div>
+
+          <h2 id="events">Events</h2>
+          <p>Subscribe to lifecycle events for monitoring, logging, and custom integrations. The typed event emitter supports 10 event types.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Subscribe to events
+rlm.on('llm_call', (event) => {
+  console.log(`LLM call to ${event.model}, context: ${event.contextLength}`);
+});
+
+rlm.on('error', (event) => {
+  console.error(`Error in ${event.operation}:`, event.error);
+});
+
+rlm.on('cache', (event) => {
+  console.log(`Cache ${event.action}`); // 'hit' | 'miss' | 'set'
+});
+
+rlm.on('retry', (event) => {
+  console.log(`Retry attempt ${event.attempt} after ${event.delay}ms`);
+});
+
+// One-time listener
+rlm.once('completion_end', (event) => {
+  console.log(`First completion done in ${event.duration}ms`);
+});
+
+// Remove listeners
+const handler = (e: any) => console.log(e);
+rlm.on('llm_call', handler);
+rlm.off('llm_call', handler);
+
+// Remove all listeners for an event
+rlm.removeAllListeners('error');</code></pre>
+          </div>
+
+          <h2 id="builder-api">Builder API</h2>
+          <p>Fluent builder for complex configurations. Factory methods for common setups.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Fluent builder
+const rlm = RLM.builder()
+  .model('gpt-4o-mini')
+  .apiKey(process.env.OPENAI_API_KEY!)
+  .maxDepth(5)
+  .maxIterations(20)
+  .enableMetaAgent('gpt-4o')
+  .enableDebug()
+  .enableCache({ maxEntries: 500 })
+  .enableRetry({ maxRetries: 3, backoff: 'exponential' })
+  .build();
+
+// Factory methods
+const rlm1 = RLM.fromEnv();               // Auto-detect from env
+const rlm2 = RLM.withDebug('gpt-4o');     // Quick debug setup
+const rlm3 = RLM.forAzure(                // Azure-specific
+  'my-deployment',
+  'https://my.openai.azure.com',
+  process.env.AZURE_API_KEY!
+);</code></pre>
+          </div>
+
+          <h2 id="batch-operations">Batch Operations</h2>
+          <p>Process multiple queries concurrently with configurable concurrency limits.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Batch text completions
+const results = await rlm.batchCompletion([
+  { query: 'Summarize chapter 1', context: chapter1 },
+  { query: 'Summarize chapter 2', context: chapter2 },
+  { query: 'Summarize chapter 3', context: chapter3 },
+], { concurrency: 3 });
+
+for (const r of results) {
+  console.log(r.result);
+}
+
+// Batch structured completions
+const structured = await rlm.batchStructuredCompletion(
+  [
+    { query: 'Extract from doc1', context: doc1 },
+    { query: 'Extract from doc2', context: doc2 },
+  ],
+  schema,
+  { concurrency: 2 }
+);</code></pre>
+          </div>
+
+          <h2 id="config-validation">Config Validation</h2>
+          <p>Validate configuration before use. Catches typos, invalid values, and missing settings with actionable messages.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { validateConfig, assertValidConfig } from 'recursive-llm-ts';
+
+// Get detailed validation results
+const result = validateConfig({
+  api_key: 'sk-...',
+  max_detph: 5, // typo!
+  max_iterations: -1, // invalid!
+});
+
+for (const issue of result.issues) {
+  console.log(`[${issue.level}] ${issue.field}: ${issue.message}`);
+}
+// [warning] max_detph: Unknown config key "max_detph" (possible typo for "max_depth")
+// [error] max_iterations: max_iterations must be positive
+
+// Or throw on errors
+assertValidConfig({ max_depth: -1 });
+// throws RLMConfigError</code></pre>
           </div>
 
           <!-- Deployment -->

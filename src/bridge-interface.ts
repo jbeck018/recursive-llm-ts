@@ -6,7 +6,7 @@ export interface RLMStats {
 }
 
 export interface RLMResult {
-  result: string | any; // Can be string for normal completions or object for structured
+  result: string; // Text result for normal completions (structured uses StructuredRLMResult<T>)
   stats: RLMStats;
   structured_result?: boolean; // Flag indicating if result is structured
   trace_events?: TraceEvent[]; // Observability trace events when enabled
@@ -59,7 +59,14 @@ export interface RLMConfig {
   // Shorthand for observability.debug
   debug?: boolean;
 
-  [key: string]: any;
+  // LiteLLM passthrough parameters (commonly used)
+  api_version?: string;          // API version (e.g., for Azure)
+  timeout?: number;              // Request timeout in seconds
+  temperature?: number;          // Sampling temperature
+  max_tokens?: number;           // Maximum tokens in response
+
+  // Structured output config (internal - set by structuredCompletion)
+  structured?: any;
 }
 
 export interface FileStorageConfig {

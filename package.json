@@ -16,7 +16,10 @@
     "prepublishOnly": "npm run build",
     "release": "./scripts/release.sh",
     "start": "ts-node test/test.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "llm",
@@ -31,7 +34,15 @@
     "extraction",
     "file-storage",
     "s3",
-    "minio"
+    "minio",
+    "streaming",
+    "caching",
+    "retry",
+    "resilience",
+    "opentelemetry",
+    "observability",
+    "batch",
+    "typescript"
   ],
   "author": "",
   "license": "MIT",
@@ -50,6 +61,7 @@
     "@types/node": "^20.11.19",
     "dotenv": "^16.4.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.18"
   }
 }

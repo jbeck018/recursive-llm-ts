@@ -6,16 +6,32 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 
 ## Features
 
-✨ **Pure Go Implementation** - No Python dependencies required
-🚀 **50x Faster Startup** - Native binary vs Python runtime
-💾 **3x Less Memory** - Efficient Go implementation
-📦 **Single Binary** - Easy distribution and deployment
-🔄 **Unbounded Context** - Process 10M+ tokens without degradation
-🎯 **Provider Agnostic** - Works with OpenAI, Anthropic, Azure, Bedrock, local models
-🔍 **Structured Outputs** - Extract typed data with Zod schemas and parallel execution
-🧠 **Meta-Agent Mode** - Automatically optimize queries for better results
-📊 **Observability** - OpenTelemetry tracing, Langfuse integration, and debug logging
-📁 **File Storage** - Process local directories or S3/MinIO/LocalStack buckets as LLM context
+**Core**
+- **Unbounded Context** - Process 10M+ tokens without degradation via recursive decomposition
+- **Structured Outputs** - Extract typed data with Zod schemas, parallel execution, and instructor-style retry
+- **Streaming** - Progressive text output and partial structured objects via async iterables
+- **Batch Operations** - Process multiple queries in parallel with concurrency control
+
+**Performance & Resilience**
+- **Pure Go Backend** - 50x faster startup, 3x less memory vs Python
+- **Caching** - Exact-match caching with in-memory and file-based backends
+- **Retry & Fallback** - Exponential backoff, jitter, and multi-provider fallback chains
+- **AbortController** - Cancel any operation mid-flight
+
+**Developer Experience**
+- **Typed Errors** - Rich error hierarchy with codes, retryable flags, and suggestions
+- **Event System** - Monitor LLM calls, cache hits, retries, and errors in real-time
+- **Builder API** - Fluent configuration with full IDE discoverability
+- **Factory Methods** - `RLM.fromEnv()`, `RLM.withDebug()`, `RLM.forAzure()`
+- **Config Validation** - Catches typos and invalid settings at construction time
+- **Result Formatters** - `prettyStats()`, `toJSON()`, `toMarkdown()`
+
+**Ecosystem**
+- **Provider Agnostic** - Works with OpenAI, Anthropic, Azure, Bedrock, local models
+- **Meta-Agent Mode** - Automatically optimize queries for better results
+- **Observability** - OpenTelemetry tracing, Langfuse integration, and debug logging
+- **File Storage** - Process local directories or S3/MinIO/LocalStack buckets as LLM context
+- **120+ Tests** - Comprehensive Vitest test suite
 
 ## Installation
 
@@ -129,6 +145,179 @@ const result = await rlm.structuredCompletion(
     maxRetries: 3              // default: 3
   }
 );
+```
+
+### Streaming
+
+Get progressive output with async iterables and AbortController support:
+
+```typescript
+// Stream text output
+const stream = rlm.streamCompletion('Summarize', longDocument);
+for await (const chunk of stream) {
+  if (chunk.type === 'text') process.stdout.write(chunk.text);
+}
+
+// Collect all text
+const text = await rlm.streamCompletion('Summarize', doc).toText();
+
+// Cancel mid-stream
+const controller = new AbortController();
+const stream = rlm.streamCompletion('Summarize', doc, { signal: controller.signal });
+setTimeout(() => controller.abort(), 5000);
+```
+
+### Caching
+
+Avoid redundant API calls with exact-match caching:
+
+```typescript
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  cache: {
+    enabled: true,
+    strategy: 'exact',   // 'exact' | 'none'
+    maxEntries: 1000,
+    ttl: 3600,            // seconds
+    storage: 'memory',    // 'memory' | 'file'
+  }
+});
+
+const r1 = await rlm.completion('Summarize', doc); // API call
+const r2 = await rlm.completion('Summarize', doc); // Cache hit!
+console.log(r2.cached); // true
+console.log(rlm.getCacheStats()); // { hits: 1, misses: 1, hitRate: 0.5, ... }
+```
+
+### Retry & Resilience
+
+Automatic retry with exponential backoff and provider fallback:
+
+```typescript
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  retry: {
+    maxRetries: 3,
+    backoff: 'exponential', // 1s, 2s, 4s with jitter
+    onRetry: (attempt, error, delay) => {
+      console.log(`Retry ${attempt} after ${delay}ms: ${error.message}`);
+    },
+  },
+});
+
+// Or use standalone retry/fallback utilities:
+import { withRetry, withFallback } from 'recursive-llm-ts';
+
+const result = await withFallback(
+  (model) => rlm.completion(query, context),
+  { models: ['gpt-4o', 'claude-sonnet-4-20250514', 'gemini-2.0-flash'] }
+);
+```
+
+### Event System
+
+Monitor operations in real-time:
+
+```typescript
+const rlm = new RLM('gpt-4o-mini', { api_key: process.env.OPENAI_API_KEY });
+
+rlm.on('llm_call', (e) => console.log(`Calling ${e.model}...`));
+rlm.on('llm_response', (e) => console.log(`Response in ${e.duration}ms`));
+rlm.on('cache', (e) => console.log(`Cache ${e.action}`));
+rlm.on('error', (e) => reportToSentry(e.error));
+rlm.on('completion_start', (e) => showSpinner());
+rlm.on('completion_end', (e) => hideSpinner());
+```
+
+### Builder API
+
+Fluent configuration with full IDE discoverability:
+
+```typescript
+const rlm = RLM.builder('gpt-4o-mini')
+  .apiKey(process.env.OPENAI_API_KEY!)
+  .maxDepth(10)
+  .maxIterations(30)
+  .withMetaAgent({ model: 'gpt-4o' })
+  .withDebug()
+  .withCache({ strategy: 'exact' })
+  .withRetry({ maxRetries: 3 })
+  .withFallback(['gpt-4o', 'claude-sonnet-4-20250514'])
+  .build();
+```
+
+### Factory Methods
+
+Quick setup for common configurations:
+
+```typescript
+// From environment variables
+const rlm = RLM.fromEnv('gpt-4o-mini');
+
+// Debug mode
+const rlm = RLM.withDebug('gpt-4o-mini');
+
+// Azure OpenAI
+const rlm = RLM.forAzure('my-deployment', {
+  apiBase: 'https://myresource.openai.azure.com',
+  apiVersion: '2024-02-15-preview',
+});
+```
+
+### Batch Operations
+
+Process multiple queries in parallel:
+
+```typescript
+const results = await rlm.batchCompletion([
+  { query: 'Summarize chapter 1', context: ch1 },
+  { query: 'Summarize chapter 2', context: ch2 },
+  { query: 'Summarize chapter 3', context: ch3 },
+], { concurrency: 2 });
+```
+
+### Error Handling
+
+Rich error hierarchy with actionable information:
+
+```typescript
+import { RLMRateLimitError, RLMValidationError, RLMTimeoutError } from 'recursive-llm-ts';
+
+try {
+  const result = await rlm.completion(query, context);
+} catch (err) {
+  if (err instanceof RLMRateLimitError) {
+    console.log(`Rate limited. Retry after: ${err.retryAfter}s`);
+  } else if (err instanceof RLMValidationError) {
+    console.log(`Schema mismatch:`, err.zodErrors);
+  } else if (err instanceof RLMTimeoutError) {
+    console.log(`Timed out after ${err.elapsed}ms`);
+  }
+  // All RLM errors have: err.code, err.retryable, err.suggestion
+}
+```
+
+### Config Validation
+
+Catch configuration issues at construction time:
+
+```typescript
+const rlm = new RLM('gpt-4o-mini', { max_detph: 5 }); // typo!
+const result = rlm.validate();
+// result.issues: [{ level: 'warning', field: 'max_detph', message: 'Unknown config key...' }]
+```
+
+### Result Formatting
+
+```typescript
+const result = await rlm.completion(query, context);
+const formatted = rlm.formatResult(result);
+
+console.log(formatted.prettyStats());
+// "LLM Calls: 3 | Iterations: 12 | Depth: 2"
+
+console.log(formatted.toMarkdown());
+// Full markdown-formatted result with stats table
 ```
 
 ### Agent Coordinator (Advanced)
@@ -463,6 +652,42 @@ Process a query using files from local or S3 storage as context.
 
 Extract structured data from file-based context.
 
+#### `streamCompletion(query, context, options?): RLMStream`
+
+Stream a completion with progressive text output. Returns an async iterable.
+
+#### `streamStructuredCompletion<T>(query, context, schema, options?): RLMStream<T>`
+
+Stream a structured completion with partial object updates.
+
+#### `batchCompletion(queries, options?): Promise<Array<RLMCompletionResult | Error>>`
+
+Execute multiple completions in parallel with concurrency control.
+
+#### `batchStructuredCompletion<T>(queries, options?): Promise<Array<StructuredRLMResult<T> | Error>>`
+
+Execute multiple structured completions in parallel.
+
+#### `validate(): ValidationResult`
+
+Validate the current configuration without making API calls.
+
+#### `getCacheStats(): CacheStats`
+
+Get cache performance statistics (hits, misses, hit rate).
+
+#### `clearCache(): void`
+
+Clear the completion cache.
+
+#### `formatResult(result): RLMResultFormatter`
+
+Create a formatted result with `prettyStats()`, `toJSON()`, `toMarkdown()`.
+
+#### `on(event, listener) / off(event, listener) / once(event, listener)`
+
+Register/remove event listeners. Events: `llm_call`, `llm_response`, `error`, `cache`, `completion_start`, `completion_end`, `retry`, `validation_retry`, `meta_agent`, `recursion`.
+
 #### `cleanup(): Promise<void>`
 
 Clean up the bridge and free resources.
@@ -508,12 +733,39 @@ interface RLMConfig {
   // Shorthand for observability.debug
   debug?: boolean;
 
-  // LiteLLM parameters - pass any additional parameters supported by LiteLLM
+  // LiteLLM parameters
   api_version?: string;          // API version (e.g., for Azure)
   timeout?: number;              // Request timeout in seconds
   temperature?: number;          // Sampling temperature
   max_tokens?: number;           // Maximum tokens in response
-  [key: string]: any;            // Any other LiteLLM parameters
+
+  // New in v5: Caching, retry, fallback
+  cache?: CacheConfig;           // Cache configuration
+  retry?: RetryConfig;           // Retry configuration
+  fallback?: FallbackConfig;     // Fallback model configuration
+}
+
+interface CacheConfig {
+  enabled?: boolean;             // Enable caching (default: false)
+  strategy?: 'exact' | 'none';  // Cache strategy (default: 'exact')
+  maxEntries?: number;           // Max cached entries (default: 1000)
+  ttl?: number;                  // Time-to-live in seconds (default: 3600)
+  storage?: 'memory' | 'file';  // Storage backend (default: 'memory')
+  cacheDir?: string;             // Dir for file cache (default: '.rlm-cache')
+}
+
+interface RetryConfig {
+  maxRetries?: number;           // Max retries (default: 3)
+  backoff?: 'exponential' | 'linear' | 'fixed';
+  baseDelay?: number;            // Base delay ms (default: 1000)
+  maxDelay?: number;             // Max delay ms (default: 30000)
+  jitter?: boolean;              // Add jitter (default: true)
+  onRetry?: (attempt: number, error: Error, delay: number) => void;
+}
+
+interface FallbackConfig {
+  models?: string[];             // Ordered fallback models
+  strategy?: 'sequential';      // Fallback strategy
 }
 
 interface MetaAgentConfig {
@@ -583,6 +835,21 @@ interface FileStorageResult {
   totalSize: number;
   skipped: Array<{ relativePath: string; reason: string }>;
 }
+
+// Error hierarchy - all extend RLMError
+class RLMError extends Error {
+  code: string;                  // Machine-readable: "RATE_LIMIT", "VALIDATION", etc.
+  retryable: boolean;            // Whether caller should retry
+  suggestion?: string;           // Human-readable fix suggestion
+}
+class RLMValidationError extends RLMError { expected; received; zodErrors; }
+class RLMRateLimitError extends RLMError { retryAfter?: number; }
+class RLMTimeoutError extends RLMError { elapsed; limit; }
+class RLMProviderError extends RLMError { statusCode; provider; }
+class RLMBinaryError extends RLMError { binaryPath; }
+class RLMConfigError extends RLMError { field; value; }
+class RLMSchemaError extends RLMError { path; constraint; }
+class RLMAbortError extends RLMError {}
 ```
 
 ## Environment Variables
@@ -881,6 +1148,32 @@ The recursive-llm approach breaks down large contexts into manageable chunks and
 - ✅ **Provider-agnostic** - Works with OpenAI-compatible APIs or LiteLLM proxy
 - ✅ **Type-safe** - Full TypeScript type definitions
 - ✅ **Simple API** - Just `npm install` and start using
+
+## Testing
+
+```bash
+# Run all tests (Vitest)
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Coverage
+npm run test:coverage
+
+# Type-check
+npm run typecheck
+
+# Go tests
+cd go && go test ./rlm/... -v
+```
+
+## Documentation
+
+- [Quick Start Guide](docs/QUICKSTART.md)
+- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [UX/DX Gap Analysis](docs/UX-DX-GAP-ANALYSIS.md)
 
 ## Publishing
 
