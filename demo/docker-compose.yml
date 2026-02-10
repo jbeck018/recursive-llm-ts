@@ -1,0 +1,29 @@
+version: "3.8"
+
+# recursive-llm-ts Demo Environment
+#
+# Usage:
+#   docker compose -f demo/docker-compose.yml up -d
+#
+# This starts LocalStack with an S3 bucket pre-seeded with demo data.
+# After startup, you can run the demo scripts:
+#   npx ts-node demo/run-demo.ts
+
+services:
+  localstack:
+    image: localstack/localstack:s3-latest
+    container_name: rlm-demo-localstack
+    ports:
+      - "4566:4566"      # LocalStack S3 endpoint
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+      - DEBUG=0
+    volumes:
+      - "./init-localstack.sh:/etc/localstack/init/ready.d/init-s3.sh"
+      - "./seed-data:/seed-data:ro"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
