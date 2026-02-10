@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guide - recursive-llm-ts</title>
+  <meta name="description" content="Getting started guide for recursive-llm-ts. Installation, configuration, and usage patterns.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1f504;</text></svg>">
+</head>
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo">
+        <span class="logo-icon">R</span>
+        <span>recursive-llm-ts</span>
+      </a>
+      <button class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <nav class="site-nav">
+        <a href="index.html">Home</a>
+        <a href="guide.html" class="active">Guide</a>
+        <a href="api.html">API</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts" class="nav-github">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="docs-layout">
+        <!-- Sidebar -->
+        <aside class="docs-sidebar">
+          <nav>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Getting Started</div>
+              <a href="#installation" class="sidebar-link active">Installation</a>
+              <a href="#prerequisites" class="sidebar-link">Prerequisites</a>
+              <a href="#configuration" class="sidebar-link">Configuration</a>
+              <a href="#first-completion" class="sidebar-link">First Completion</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Core Concepts</div>
+              <a href="#recursive-decomposition" class="sidebar-link">Recursive Decomposition</a>
+              <a href="#structured-outputs" class="sidebar-link">Structured Outputs</a>
+              <a href="#file-storage" class="sidebar-link">File Storage</a>
+              <a href="#meta-agent" class="sidebar-link">Meta-Agent</a>
+              <a href="#observability" class="sidebar-link">Observability</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Deployment</div>
+              <a href="#providers" class="sidebar-link">LLM Providers</a>
+              <a href="#docker" class="sidebar-link">Docker</a>
+              <a href="#go-module" class="sidebar-link">Go Module</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Reference</div>
+              <a href="#env-vars" class="sidebar-link">Environment Variables</a>
+              <a href="#binary-resolution" class="sidebar-link">Binary Resolution</a>
+              <a href="#troubleshooting" class="sidebar-link">Troubleshooting</a>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Content -->
+        <div class="docs-content">
+          <h1>Guide</h1>
+          <p>This guide covers installation, configuration, and usage patterns for <code>recursive-llm-ts</code>.</p>
+
+          <!-- Installation -->
+          <h2 id="installation">Installation</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash">npm install recursive-llm-ts</code></pre>
+          </div>
+
+          <p>The <code>postinstall</code> script automatically builds the Go binary. If Go is not available, it will warn but not fail.</p>
+
+          <h2 id="prerequisites">Prerequisites</h2>
+          <ul>
+            <li><strong>Node.js 16+</strong> or <strong>Bun 1.0+</strong></li>
+            <li><strong>Go 1.25+</strong> &mdash; only needed if building the Go binary from source</li>
+            <li>An <strong>OpenAI API key</strong> (or key for any OpenAI-compatible provider)</li>
+          </ul>
+
+          <div class="callout info">
+            <div class="callout-title">Pre-built binaries</div>
+            <p>Pre-built binaries are available via <a href="https://github.com/jbeck018/recursive-llm-ts/releases">GitHub Releases</a> for Linux, macOS, and Windows on amd64 and arm64. Download and set <code>RLM_GO_BINARY</code> to skip the Go build step.</p>
+          </div>
+
+          <h2 id="configuration">Configuration</h2>
+          <p>Set your API key as an environment variable or pass it in the configuration.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash">export OPENAI_API_KEY='sk-...'</code></pre>
+          </div>
+
+          <p>Or pass it directly:</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  api_key: 'sk-...',
+  max_iterations: 15,
+  max_depth: 5,
+});</code></pre>
+          </div>
+
+          <h2 id="first-completion">First Completion</h2>
+          <p>The simplest usage &mdash; pass a query and a large context string:</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+const result = await rlm.completion(
+  'What are the key findings?',
+  veryLargeDocument  // Any size - no token limit
+);
+
+console.log(result.result);
+console.log('Stats:', result.stats);
+// { llm_calls: 8, iterations: 12, depth: 2 }
+
+await rlm.cleanup();</code></pre>
+          </div>
+
+          <p>The engine automatically:</p>
+          <ul>
+            <li>Splits the context into manageable chunks</li>
+            <li>Uses the LLM to write JavaScript analysis code</li>
+            <li>Executes the code in a sandboxed REPL</li>
+            <li>Recursively combines results</li>
+          </ul>
+
+          <!-- Core Concepts -->
+          <h2 id="recursive-decomposition">Recursive Decomposition</h2>
+          <p>The core innovation from the <a href="https://alexzhang13.github.io/blog/2025/rlm/">RLM paper</a>. When a context is too large for a single LLM call, the engine:</p>
+
+          <ol>
+            <li><strong>Splits</strong> the context into chunks that fit the model's context window</li>
+            <li><strong>Processes</strong> each chunk with the LLM, which writes JavaScript code to analyze it</li>
+            <li><strong>Executes</strong> the code in a sandboxed JavaScript REPL (goja engine)</li>
+            <li><strong>Recurses</strong> if needed &mdash; results from subchunks become context for the next level</li>
+            <li><strong>Merges</strong> results back up the tree to produce the final answer</li>
+          </ol>
+
+          <p>Control recursion with <code>max_depth</code> (default: 5) and <code>max_iterations</code> (default: 30).</p>
+
+          <h2 id="structured-outputs">Structured Outputs</h2>
+          <p>Extract typed data using Zod schemas. The engine converts your schema to JSON Schema, decomposes complex schemas into subtasks, and validates results with retry logic.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { z } from 'zod';
+
+const schema = z.object({
+  sentiment: z.number().min(1).max(5),
+  summary: z.string(),
+  topics: z.array(z.enum(['pricing', 'features', 'support'])),
+  keyPhrases: z.array(z.object({
+    phrase: z.string(),
+    weight: z.number(),
+  })),
+});
+
+const result = await rlm.structuredCompletion(
+  'Analyze this transcript',
+  transcript,
+  schema,
+  { parallelExecution: true, maxRetries: 3 }
+);
+
+// result.result is typed as z.infer&lt;typeof schema&gt;</code></pre>
+          </div>
+
+          <p><strong>How it works under the hood:</strong></p>
+          <ul>
+            <li>Zod schema is converted to JSON Schema</li>
+            <li>Meta-agent optimizes the query for extraction (if enabled)</li>
+            <li>Complex schemas are decomposed into per-field subtasks</li>
+            <li>Subtasks run in parallel via goroutines</li>
+            <li>Each field is validated against its JSON Schema</li>
+            <li>Failed fields get retried with error feedback (instructor-style)</li>
+            <li>Results are merged into the final typed object</li>
+          </ul>
+
+          <p><strong>Supported Zod types:</strong> objects, arrays, strings, numbers, booleans, enums, unions (<code>z.union</code>), intersections (<code>z.intersection</code>), optionals, nullables, and all constraints (<code>min</code>, <code>max</code>, <code>length</code>, <code>pattern</code>, etc.).</p>
+
+          <h2 id="file-storage">File Storage Context</h2>
+          <p>Process files from local directories or S3-compatible storage as LLM context. Added in v4.4.0.</p>
+
+          <h3>Local Files</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const result = await rlm.completionFromFiles(
+  'Describe the architecture',
+  {
+    type: 'local',
+    path: './src',
+    extensions: ['.ts', '.tsx'],
+    excludePatterns: ['*.test.ts', 'node_modules/**'],
+    maxFileSize: 100_000,
+    maxTotalSize: 5_000_000,
+    maxFiles: 100,
+  }
+);</code></pre>
+          </div>
+
+          <h3>S3 Storage</h3>
+          <p>Works with AWS S3, MinIO, LocalStack, DigitalOcean Spaces, and Backblaze B2.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// AWS S3
+const result = await rlm.completionFromFiles(
+  'Summarize reports',
+  {
+    type: 's3',
+    path: 'my-bucket',
+    prefix: 'reports/',
+    extensions: ['.md', '.txt'],
+    region: 'us-west-2',
+    // Credentials: explicit > env vars > AWS SDK chain
+  }
+);
+
+// MinIO
+const result2 = await rlm.completionFromFiles(
+  'Analyze data',
+  {
+    type: 's3',
+    path: 'local-bucket',
+    endpoint: 'http://localhost:9000',
+    credentials: {
+      accessKeyId: 'minioadmin',
+      secretAccessKey: 'minioadmin',
+    },
+  }
+);</code></pre>
+          </div>
+
+          <div class="callout info">
+            <div class="callout-title">S3 Credential Resolution</div>
+            <p>Credentials are resolved in order: (1) explicit <code>credentials</code> in config, (2) environment variables (<code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_SESSION_TOKEN</code>), (3) AWS SDK default chain (IAM role, <code>~/.aws/credentials</code>, ECS task role).</p>
+          </div>
+
+          <h2 id="meta-agent">Meta-Agent</h2>
+          <p>The meta-agent automatically optimizes queries before processing. Useful for vague or non-specific queries.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  meta_agent: {
+    enabled: true,
+    model: 'gpt-4o',       // Stronger model for optimization
+    max_optimize_len: 10000, // Skip for short contexts
+  },
+});
+
+// "what happened?" becomes:
+// "Provide a detailed summary including: key decisions,
+//  action items, participants, and unresolved issues."
+const result = await rlm.completion('what happened?', transcript);</code></pre>
+          </div>
+
+          <h2 id="observability">Observability</h2>
+          <p>Three observability backends available simultaneously:</p>
+
+          <h3>Debug Logging</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  debug: true, // Shorthand for observability.debug
+});</code></pre>
+          </div>
+
+          <h3>OpenTelemetry</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  observability: {
+    trace_enabled: true,
+    trace_endpoint: 'localhost:4317',
+    service_name: 'my-service',
+  },
+});</code></pre>
+          </div>
+
+          <h3>Langfuse</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  observability: {
+    langfuse_enabled: true,
+    langfuse_public_key: process.env.LANGFUSE_PUBLIC_KEY,
+    langfuse_secret_key: process.env.LANGFUSE_SECRET_KEY,
+  },
+});</code></pre>
+          </div>
+
+          <h3>Accessing Trace Events</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const result = await rlm.completion('Summarize', doc);
+
+const events = rlm.getTraceEvents();
+for (const e of events) {
+  console.log(`[${e.type}] ${e.name}`, e.attributes);
+  // [span_start] rlm.completion {trace_id: "abc..."}
+  // [llm_call] gpt-4o-mini {tokens: 1247, duration_ms: 2341}
+  // [span_end] rlm.completion {total_duration_ms: 5218}
+}</code></pre>
+          </div>
+
+          <!-- Deployment -->
+          <h2 id="providers">LLM Providers</h2>
+          <p>The Go binary uses an OpenAI-compatible chat completion API. Any provider that supports the <code>/chat/completions</code> schema works:</p>
+
+          <table class="config-table">
+            <thead>
+              <tr><th>Provider</th><th>Configuration</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>OpenAI</strong></td>
+                <td>Default. Just set <code>api_key</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Azure OpenAI</strong></td>
+                <td><code>api_base</code> + <code>api_key</code> + <code>api_version</code></td>
+              </tr>
+              <tr>
+                <td><strong>Bedrock</strong></td>
+                <td>Via LiteLLM proxy: <code>api_base</code> pointing to proxy</td>
+              </tr>
+              <tr>
+                <td><strong>Anthropic</strong></td>
+                <td>Via LiteLLM proxy</td>
+              </tr>
+              <tr>
+                <td><strong>Ollama</strong></td>
+                <td><code>api_base: 'http://localhost:11434/v1'</code></td>
+              </tr>
+              <tr>
+                <td><strong>vLLM</strong></td>
+                <td><code>api_base</code> pointing to vLLM server</td>
+              </tr>
+              <tr>
+                <td><strong>Any OpenAI-compatible</strong></td>
+                <td><code>api_base</code> + <code>api_key</code></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="docker">Docker</h2>
+          <p>Recommended: multi-stage build for minimal image size (~150MB vs ~500MB).</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Dockerfile</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># Build Go binary
+FROM golang:1.25-alpine AS go-builder
+WORKDIR /build
+COPY go/ ./
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o rlm-go ./cmd/rlm
+
+# Build Node.js
+FROM node:20-alpine AS node-builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Runtime
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=node-builder /app/node_modules ./node_modules
+COPY --from=go-builder /build/rlm-go ./bin/rlm-go
+RUN chmod +x ./bin/rlm-go
+COPY package*.json ./
+COPY dist/ ./dist/
+ENV RLM_GO_BINARY=/app/bin/rlm-go
+CMD ["node", "dist/index.js"]</code></pre>
+          </div>
+
+          <h2 id="go-module">Go Module</h2>
+          <p>Import the Go implementation directly in Go projects:</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Bash</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash">go get github.com/jbeck018/recursive-llm-ts/go</code></pre>
+          </div>
+
+          <p>See the <a href="examples.html#example-go">Go examples</a> for usage.</p>
+
+          <!-- Reference -->
+          <h2 id="env-vars">Environment Variables</h2>
+
+          <div class="callout warning">
+            <div class="callout-title">Required for operation</div>
+            <p><code>OPENAI_API_KEY</code> must be set (or passed via <code>config.api_key</code>) for the LLM to work. All other variables are optional.</p>
+          </div>
+
+          <table class="env-table">
+            <thead>
+              <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>OPENAI_API_KEY</code></td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>API key for the LLM provider</td>
+              </tr>
+              <tr>
+                <td><code>AZURE_API_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Azure OpenAI API key</td>
+              </tr>
+              <tr>
+                <td><code>RLM_GO_BINARY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Custom path to Go binary</td>
+              </tr>
+              <tr>
+                <td><code>RLM_DEBUG</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Enable debug mode (<code>1</code>)</td>
+              </tr>
+              <tr>
+                <td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>OTLP endpoint (auto-enables OTEL)</td>
+              </tr>
+              <tr>
+                <td><code>LANGFUSE_PUBLIC_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Langfuse public key</td>
+              </tr>
+              <tr>
+                <td><code>LANGFUSE_SECRET_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Langfuse secret key</td>
+              </tr>
+              <tr>
+                <td><code>LANGFUSE_HOST</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Langfuse API host</td>
+              </tr>
+              <tr>
+                <td><code>AWS_ACCESS_KEY_ID</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS access key for S3</td>
+              </tr>
+              <tr>
+                <td><code>AWS_SECRET_ACCESS_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS secret key for S3</td>
+              </tr>
+              <tr>
+                <td><code>AWS_SESSION_TOKEN</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS session token</td>
+              </tr>
+              <tr>
+                <td><code>AWS_REGION</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS region for S3</td>
+              </tr>
+              <tr>
+                <td><code>AWS_DEFAULT_REGION</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Fallback AWS region</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="binary-resolution">Binary Resolution</h2>
+          <p>The Go bridge looks for the binary in this order:</p>
+          <ol>
+            <li><code>RLMConfig.go_binary_path</code> parameter</li>
+            <li><code>RLM_GO_BINARY</code> environment variable</li>
+            <li><code>./bin/rlm-go</code> (npm package location)</li>
+            <li><code>./go/rlm-go</code> (development location)</li>
+          </ol>
+
+          <h2 id="troubleshooting">Troubleshooting</h2>
+
+          <h3>Go binary not found</h3>
+          <p>If you see "Go binary not found" errors:</p>
+          <ul>
+            <li>Ensure Go 1.25+ is installed: <code>go version</code></li>
+            <li>Manually build: <code>cd go && go build -o ../bin/rlm-go ./cmd/rlm</code></li>
+            <li>Or set <code>RLM_GO_BINARY</code> to a pre-built binary path</li>
+          </ul>
+
+          <h3>S3 authentication errors</h3>
+          <p>The <code>S3StorageError</code> class provides actionable remediation messages:</p>
+          <ul>
+            <li><strong>AUTH_FAILED</strong>: Check credentials config or <code>AWS_ACCESS_KEY_ID</code>/<code>AWS_SECRET_ACCESS_KEY</code></li>
+            <li><strong>ACCESS_DENIED</strong>: Verify IAM permissions for the bucket</li>
+            <li><strong>BUCKET_NOT_FOUND</strong>: Verify the bucket name and region</li>
+            <li><strong>REGION_MISMATCH</strong>: The bucket is in a different region</li>
+          </ul>
+
+          <h3>Timeout errors</h3>
+          <p>For very large documents, increase the timeout:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  max_iterations: 50,
+  timeout: 300,           // 5 min for LLM calls
+  pythonia_timeout: 600000, // 10 min for bridge
+});</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts">GitHub</a>
+        <a href="https://www.npmjs.com/package/recursive-llm-ts">npm</a>
+      </div>
+      <p class="footer-copy">
+        MIT License &mdash; Based on <a href="https://alexzhang13.github.io/blog/2025/rlm/">Recursive Language Models</a> by Alex Zhang &amp; Omar Khattab
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

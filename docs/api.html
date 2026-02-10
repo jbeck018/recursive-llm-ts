@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference - recursive-llm-ts</title>
+  <meta name="description" content="Complete API reference for recursive-llm-ts. Classes, methods, configuration types, and interfaces.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1f504;</text></svg>">
+</head>
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo">
+        <span class="logo-icon">R</span>
+        <span>recursive-llm-ts</span>
+      </a>
+      <button class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <nav class="site-nav">
+        <a href="index.html">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="api.html" class="active">API</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts" class="nav-github">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="docs-layout">
+        <!-- Sidebar -->
+        <aside class="docs-sidebar">
+          <nav>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Classes</div>
+              <a href="#rlm-class" class="sidebar-link active">RLM</a>
+              <a href="#coordinator-class" class="sidebar-link">RLMAgentCoordinator</a>
+              <a href="#file-context-builder" class="sidebar-link">FileContextBuilder</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Configuration</div>
+              <a href="#rlm-config" class="sidebar-link">RLMConfig</a>
+              <a href="#meta-agent-config" class="sidebar-link">MetaAgentConfig</a>
+              <a href="#observability-config" class="sidebar-link">ObservabilityConfig</a>
+              <a href="#file-storage-config" class="sidebar-link">FileStorageConfig</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Types</div>
+              <a href="#rlm-result" class="sidebar-link">RLMResult</a>
+              <a href="#rlm-stats" class="sidebar-link">RLMStats</a>
+              <a href="#structured-result" class="sidebar-link">StructuredRLMResult</a>
+              <a href="#trace-event" class="sidebar-link">TraceEvent</a>
+              <a href="#file-storage-result" class="sidebar-link">FileStorageResult</a>
+              <a href="#s3-storage-error" class="sidebar-link">S3StorageError</a>
+            </div>
+            <div class="sidebar-section">
+              <div class="sidebar-title">Environment</div>
+              <a href="#env-vars" class="sidebar-link">Environment Variables</a>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Content -->
+        <div class="docs-content">
+          <h1>API Reference</h1>
+          <p>Complete reference for all classes, methods, and types exported by <code>recursive-llm-ts</code>.</p>
+
+          <!-- RLM Class -->
+          <h2 id="rlm-class">RLM</h2>
+          <p>Main class for recursive language model completions. Manages the Go binary bridge and provides methods for processing queries with unbounded context.</p>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">constructor(model, rlmConfig?, bridgeType?)</span>
+            </div>
+            <div class="api-method-body">
+              <p>Create a new RLM instance.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>model</code></td>
+                    <td><code>string</code></td>
+                    <td>LLM model identifier (e.g., <code>'gpt-4o-mini'</code>, <code>'claude-3-sonnet'</code>)</td>
+                  </tr>
+                  <tr>
+                    <td><code>rlmConfig</code></td>
+                    <td><code>RLMConfig</code></td>
+                    <td>Optional configuration object</td>
+                  </tr>
+                  <tr>
+                    <td><code>bridgeType</code></td>
+                    <td><code>BridgeType</code></td>
+                    <td>Optional bridge selection: <code>'go'</code> | <code>'pythonia'</code> | <code>'bunpy'</code> | <code>'auto'</code>. Defaults to <code>'auto'</code> (prefers Go)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">completion(query, context)</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>Process a query with the given context using recursive language models. The context can be arbitrarily large &mdash; it will be recursively decomposed.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>query</code></td>
+                    <td><code>string</code></td>
+                    <td>The question or task to perform</td>
+                  </tr>
+                  <tr>
+                    <td><code>context</code></td>
+                    <td><code>string</code></td>
+                    <td>The document/context to process (any size)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;RLMResult&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">structuredCompletion&lt;T&gt;(query, context, schema, options?)</span>
+              <span class="api-badge async">async</span>
+              <span class="api-badge generic">generic</span>
+            </div>
+            <div class="api-method-body">
+              <p>Extract structured, typed data from context using a Zod schema. Supports complex nested objects, arrays, enums, and constraints. Automatically validates and retries on schema mismatch.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>query</code></td>
+                    <td><code>string</code></td>
+                    <td>The extraction task</td>
+                  </tr>
+                  <tr>
+                    <td><code>context</code></td>
+                    <td><code>string</code></td>
+                    <td>The document to extract from</td>
+                  </tr>
+                  <tr>
+                    <td><code>schema</code></td>
+                    <td><code>ZodSchema&lt;T&gt;</code></td>
+                    <td>Zod schema defining the output structure</td>
+                  </tr>
+                  <tr>
+                    <td><code>options.parallelExecution</code></td>
+                    <td><code>boolean</code></td>
+                    <td>Enable parallel processing of schema fields (default: <code>true</code>)</td>
+                  </tr>
+                  <tr>
+                    <td><code>options.maxRetries</code></td>
+                    <td><code>number</code></td>
+                    <td>Max validation retries per field (default: <code>3</code>)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;StructuredRLMResult&lt;T&gt;&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">completionFromFiles(query, fileConfig)</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>Process a query using files from local or S3 storage as context. Recursively traverses directories, applies filters, and builds context automatically.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>query</code></td>
+                    <td><code>string</code></td>
+                    <td>The question or task</td>
+                  </tr>
+                  <tr>
+                    <td><code>fileConfig</code></td>
+                    <td><code>FileStorageConfig</code></td>
+                    <td>File storage configuration</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;RLMResult &amp; { fileStorage?: FileStorageResult }&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">structuredCompletionFromFiles&lt;T&gt;(query, fileConfig, schema, options?)</span>
+              <span class="api-badge async">async</span>
+              <span class="api-badge generic">generic</span>
+            </div>
+            <div class="api-method-body">
+              <p>Extract structured data from file-based context. Combines file traversal with Zod schema extraction.</p>
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>query</code></td>
+                    <td><code>string</code></td>
+                    <td>The extraction task</td>
+                  </tr>
+                  <tr>
+                    <td><code>fileConfig</code></td>
+                    <td><code>FileStorageConfig</code></td>
+                    <td>File storage configuration</td>
+                  </tr>
+                  <tr>
+                    <td><code>schema</code></td>
+                    <td><code>ZodSchema&lt;T&gt;</code></td>
+                    <td>Zod schema for output</td>
+                  </tr>
+                  <tr>
+                    <td><code>options</code></td>
+                    <td><code>object</code></td>
+                    <td>Same as <code>structuredCompletion</code> options</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;StructuredRLMResult&lt;T&gt; &amp; { fileStorage?: FileStorageResult }&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">getTraceEvents()</span>
+            </div>
+            <div class="api-method-body">
+              <p>Returns trace events from the last operation. Only populated when observability is enabled.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>TraceEvent[]</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">cleanup()</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>Clean up the bridge and free resources. Call this when done with the RLM instance.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;void&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- RLMAgentCoordinator -->
+          <h2 id="coordinator-class">RLMAgentCoordinator</h2>
+          <p>Advanced coordinator for complex multi-field schema extraction. Wraps RLM with schema decomposition and parallel processing.</p>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">constructor(model, rlmConfig?, bridgeType?, coordinatorConfig?)</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>model</code></td>
+                    <td><code>string</code></td>
+                    <td>LLM model identifier</td>
+                  </tr>
+                  <tr>
+                    <td><code>rlmConfig</code></td>
+                    <td><code>RLMConfig</code></td>
+                    <td>Optional RLM configuration</td>
+                  </tr>
+                  <tr>
+                    <td><code>bridgeType</code></td>
+                    <td><code>BridgeType</code></td>
+                    <td>Bridge selection</td>
+                  </tr>
+                  <tr>
+                    <td><code>coordinatorConfig</code></td>
+                    <td><code>CoordinatorConfig</code></td>
+                    <td>Coordinator options (e.g., <code>{ parallelExecution: true }</code>)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">processComplex&lt;T&gt;(query, context, schema)</span>
+              <span class="api-badge async">async</span>
+              <span class="api-badge generic">generic</span>
+            </div>
+            <div class="api-method-body">
+              <p>Process a complex extraction task with schema decomposition.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;StructuredRLMResult&lt;T&gt;&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- FileContextBuilder -->
+          <h2 id="file-context-builder">FileContextBuilder</h2>
+          <p>Utility for building LLM context from file trees. Supports local filesystem and S3-compatible storage.</p>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">constructor(config)</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead>
+                  <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>config</code></td>
+                    <td><code>FileStorageConfig</code></td>
+                    <td>File storage configuration</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">listMatchingFiles()</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>List files that match the configuration filters without reading their content. Useful for previewing what will be processed.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;string[]&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">buildContext()</span>
+              <span class="api-badge async">async</span>
+            </div>
+            <div class="api-method-body">
+              <p>Build the full context string from matching files. Includes file contents with delimiters.</p>
+              <div class="api-returns">
+                <div class="api-returns-label">Returns</div>
+                <code>Promise&lt;FileStorageResult&gt;</code>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration Types -->
+          <h2 id="rlm-config">RLMConfig</h2>
+          <p>Configuration object for the RLM constructor.</p>
+          <table class="config-table">
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>api_key</code></td>
+                <td><code>string</code></td>
+                <td><code>OPENAI_API_KEY</code> env</td>
+                <td>API key for LLM provider</td>
+              </tr>
+              <tr>
+                <td><code>api_base</code></td>
+                <td><code>string</code></td>
+                <td>OpenAI default</td>
+                <td>Custom API endpoint URL (Azure, vLLM, etc.)</td>
+              </tr>
+              <tr>
+                <td><code>max_depth</code></td>
+                <td><code>number</code></td>
+                <td><code>5</code></td>
+                <td>Maximum recursion depth</td>
+              </tr>
+              <tr>
+                <td><code>max_iterations</code></td>
+                <td><code>number</code></td>
+                <td><code>30</code></td>
+                <td>Maximum REPL iterations per call</td>
+              </tr>
+              <tr>
+                <td><code>recursive_model</code></td>
+                <td><code>string</code></td>
+                <td>same as <code>model</code></td>
+                <td>Cheaper model for recursive calls</td>
+              </tr>
+              <tr>
+                <td><code>go_binary_path</code></td>
+                <td><code>string</code></td>
+                <td>auto-detected</td>
+                <td>Override path to Go binary</td>
+              </tr>
+              <tr>
+                <td><code>meta_agent</code></td>
+                <td><code>MetaAgentConfig</code></td>
+                <td>&mdash;</td>
+                <td>Meta-agent configuration</td>
+              </tr>
+              <tr>
+                <td><code>observability</code></td>
+                <td><code>ObservabilityConfig</code></td>
+                <td>&mdash;</td>
+                <td>Observability configuration</td>
+              </tr>
+              <tr>
+                <td><code>debug</code></td>
+                <td><code>boolean</code></td>
+                <td><code>false</code></td>
+                <td>Shorthand for <code>observability.debug</code></td>
+              </tr>
+              <tr>
+                <td><code>temperature</code></td>
+                <td><code>number</code></td>
+                <td>&mdash;</td>
+                <td>LLM sampling temperature</td>
+              </tr>
+              <tr>
+                <td><code>max_tokens</code></td>
+                <td><code>number</code></td>
+                <td>&mdash;</td>
+                <td>Maximum tokens in response</td>
+              </tr>
+              <tr>
+                <td><code>timeout</code></td>
+                <td><code>number</code></td>
+                <td>&mdash;</td>
+                <td>Request timeout in seconds</td>
+              </tr>
+              <tr>
+                <td><code>[key: string]</code></td>
+                <td><code>any</code></td>
+                <td>&mdash;</td>
+                <td>Any additional LiteLLM parameters</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="meta-agent-config">MetaAgentConfig</h2>
+          <p>Configuration for the query optimization meta-agent.</p>
+          <table class="config-table">
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>enabled</code></td>
+                <td><code>boolean</code></td>
+                <td><code>false</code></td>
+                <td>Enable the meta-agent</td>
+              </tr>
+              <tr>
+                <td><code>model</code></td>
+                <td><code>string</code></td>
+                <td>main model</td>
+                <td>Model for query optimization</td>
+              </tr>
+              <tr>
+                <td><code>max_optimize_len</code></td>
+                <td><code>number</code></td>
+                <td><code>0</code></td>
+                <td>Max context length before optimization (0 = always)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="observability-config">ObservabilityConfig</h2>
+          <p>Configuration for tracing, logging, and observability integrations.</p>
+          <table class="config-table">
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>debug</code></td>
+                <td><code>boolean</code></td>
+                <td><code>false</code></td>
+                <td>Enable verbose debug logging</td>
+              </tr>
+              <tr>
+                <td><code>trace_enabled</code></td>
+                <td><code>boolean</code></td>
+                <td><code>false</code></td>
+                <td>Enable OpenTelemetry tracing</td>
+              </tr>
+              <tr>
+                <td><code>trace_endpoint</code></td>
+                <td><code>string</code></td>
+                <td>&mdash;</td>
+                <td>OTLP endpoint (e.g., <code>"localhost:4317"</code>)</td>
+              </tr>
+              <tr>
+                <td><code>service_name</code></td>
+                <td><code>string</code></td>
+                <td><code>"rlm"</code></td>
+                <td>Service name for traces</td>
+              </tr>
+              <tr>
+                <td><code>log_output</code></td>
+                <td><code>string</code></td>
+                <td><code>"stderr"</code></td>
+                <td>Log destination: <code>"stderr"</code>, <code>"stdout"</code>, or file path</td>
+              </tr>
+              <tr>
+                <td><code>langfuse_enabled</code></td>
+                <td><code>boolean</code></td>
+                <td><code>false</code></td>
+                <td>Enable Langfuse integration</td>
+              </tr>
+              <tr>
+                <td><code>langfuse_public_key</code></td>
+                <td><code>string</code></td>
+                <td>&mdash;</td>
+                <td>Langfuse public key</td>
+              </tr>
+              <tr>
+                <td><code>langfuse_secret_key</code></td>
+                <td><code>string</code></td>
+                <td>&mdash;</td>
+                <td>Langfuse secret key</td>
+              </tr>
+              <tr>
+                <td><code>langfuse_host</code></td>
+                <td><code>string</code></td>
+                <td><code>"https://cloud.langfuse.com"</code></td>
+                <td>Langfuse API host</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h2 id="file-storage-config">FileStorageConfig</h2>
+          <p>Configuration for file-based context building. Supports local filesystem and S3-compatible storage.</p>
+          <table class="config-table">
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>type</code></td>
+                <td><code>'local' | 's3'</code></td>
+                <td>&mdash;</td>
+                <td>Storage provider type (required)</td>
+              </tr>
+              <tr>
+                <td><code>path</code></td>
+                <td><code>string</code></td>
+                <td>&mdash;</td>
+                <td>Local dir path or S3 bucket name (required)</td>
+              </tr>
+              <tr>
+                <td><code>prefix</code></td>
+                <td><code>string</code></td>
+                <td>&mdash;</td>
+                <td>S3 key prefix (folder path)</td>
+              </tr>
+              <tr>
+                <td><code>region</code></td>
+                <td><code>string</code></td>
+                <td><code>'us-east-1'</code></td>
+                <td>AWS region</td>
+              </tr>
+              <tr>
+                <td><code>credentials</code></td>
+                <td><code>object</code></td>
+                <td>&mdash;</td>
+                <td><code>{ accessKeyId, secretAccessKey, sessionToken? }</code></td>
+              </tr>
+              <tr>
+                <td><code>endpoint</code></td>
+                <td><code>string</code></td>
+                <td>&mdash;</td>
+                <td>Custom S3 endpoint (MinIO, LocalStack)</td>
+              </tr>
+              <tr>
+                <td><code>forcePathStyle</code></td>
+                <td><code>boolean</code></td>
+                <td>auto</td>
+                <td>Force path-style URLs (auto with custom endpoint)</td>
+              </tr>
+              <tr>
+                <td><code>extensions</code></td>
+                <td><code>string[]</code></td>
+                <td>all</td>
+                <td>File extensions to include (e.g., <code>['.ts', '.md']</code>)</td>
+              </tr>
+              <tr>
+                <td><code>includePatterns</code></td>
+                <td><code>string[]</code></td>
+                <td>&mdash;</td>
+                <td>Glob patterns to include</td>
+              </tr>
+              <tr>
+                <td><code>excludePatterns</code></td>
+                <td><code>string[]</code></td>
+                <td>&mdash;</td>
+                <td>Glob patterns to exclude</td>
+              </tr>
+              <tr>
+                <td><code>maxFileSize</code></td>
+                <td><code>number</code></td>
+                <td><code>1048576</code> (1MB)</td>
+                <td>Max individual file size in bytes</td>
+              </tr>
+              <tr>
+                <td><code>maxTotalSize</code></td>
+                <td><code>number</code></td>
+                <td><code>10485760</code> (10MB)</td>
+                <td>Max total context size in bytes</td>
+              </tr>
+              <tr>
+                <td><code>maxFiles</code></td>
+                <td><code>number</code></td>
+                <td><code>1000</code></td>
+                <td>Max number of files to include</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Result Types -->
+          <h2 id="rlm-result">RLMResult</h2>
+          <p>Return type for <code>completion()</code> and <code>completionFromFiles()</code>.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface RLMResult {
+  result: string;                // The answer
+  stats: RLMStats;               // Execution statistics
+  trace_events?: TraceEvent[];   // Observability events (when enabled)
+}</code></pre>
+          </div>
+
+          <h2 id="rlm-stats">RLMStats</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface RLMStats {
+  llm_calls: number;         // Total LLM API calls made
+  iterations: number;        // Total REPL iterations
+  depth: number;             // Maximum recursion depth reached
+  parsing_retries?: number;  // Schema validation retries (structured)
+}</code></pre>
+          </div>
+
+          <h2 id="structured-result">StructuredRLMResult&lt;T&gt;</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface StructuredRLMResult&lt;T&gt; {
+  result: T;                     // Typed result matching your Zod schema
+  stats: RLMStats;               // Execution statistics
+  trace_events?: TraceEvent[];   // Observability events
+}</code></pre>
+          </div>
+
+          <h2 id="trace-event">TraceEvent</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface TraceEvent {
+  timestamp: string;                      // ISO 8601 timestamp
+  type: string;                           // "span_start" | "span_end" | "llm_call" | "error" | "event"
+  name: string;                           // Event name
+  attributes: Record&lt;string, string&gt;;     // Event metadata
+  duration?: number;                      // Duration in milliseconds
+  trace_id?: string;                      // OpenTelemetry trace ID
+  span_id?: string;                       // OpenTelemetry span ID
+}</code></pre>
+          </div>
+
+          <h2 id="file-storage-result">FileStorageResult</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">interface FileStorageResult {
+  context: string;           // Built context string with file contents
+  files: Array&lt;{
+    relativePath: string;    // File path relative to root
+    size: number;            // File size in bytes
+  }&gt;;
+  totalSize: number;         // Total size of all included files
+  skipped: Array&lt;{
+    relativePath: string;    // Skipped file path
+    reason: string;          // Why it was skipped
+  }&gt;;
+}</code></pre>
+          </div>
+
+          <h2 id="s3-storage-error">S3StorageError</h2>
+          <p>Typed error class with actionable remediation messages for S3 operations.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">class S3StorageError extends Error {
+  code: string;    // Error code
+  cause?: Error;   // Original error
+}
+
+// Error codes:
+// 'AUTH_FAILED'      - Missing or invalid credentials
+// 'ACCESS_DENIED'    - Insufficient permissions
+// 'BUCKET_NOT_FOUND' - Bucket does not exist
+// 'KEY_NOT_FOUND'    - Object not found
+// 'NETWORK_ERROR'    - Connection failed
+// 'REGION_MISMATCH'  - Wrong region configured</code></pre>
+          </div>
+
+          <!-- Environment Variables -->
+          <h2 id="env-vars">Environment Variables</h2>
+          <p>All environment variables used by <code>recursive-llm-ts</code>.</p>
+
+          <h3>Core</h3>
+          <table class="env-table">
+            <thead>
+              <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>OPENAI_API_KEY</code></td>
+                <td><span class="env-required yes">Required</span></td>
+                <td>API key for OpenAI (or compatible provider). Can also be passed via <code>config.api_key</code>.</td>
+              </tr>
+              <tr>
+                <td><code>AZURE_API_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>API key for Azure OpenAI deployments</td>
+              </tr>
+              <tr>
+                <td><code>RLM_GO_BINARY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Override path to the Go binary</td>
+              </tr>
+              <tr>
+                <td><code>RLM_DEBUG</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Set to <code>1</code> to enable debug mode</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Observability</h3>
+          <table class="env-table">
+            <thead>
+              <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>OTEL_EXPORTER_OTLP_ENDPOINT</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>OTLP endpoint for OpenTelemetry (auto-enables tracing)</td>
+              </tr>
+              <tr>
+                <td><code>LANGFUSE_PUBLIC_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Langfuse public key (auto-enables Langfuse)</td>
+              </tr>
+              <tr>
+                <td><code>LANGFUSE_SECRET_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Langfuse secret key</td>
+              </tr>
+              <tr>
+                <td><code>LANGFUSE_HOST</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Langfuse API host (default: <code>https://cloud.langfuse.com</code>)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>S3 File Storage</h3>
+          <table class="env-table">
+            <thead>
+              <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>AWS_ACCESS_KEY_ID</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS access key for S3 (if not using explicit credentials)</td>
+              </tr>
+              <tr>
+                <td><code>AWS_SECRET_ACCESS_KEY</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS secret key for S3</td>
+              </tr>
+              <tr>
+                <td><code>AWS_SESSION_TOKEN</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS session token (for temporary credentials)</td>
+              </tr>
+              <tr>
+                <td><code>AWS_REGION</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>AWS region (default: <code>us-east-1</code>)</td>
+              </tr>
+              <tr>
+                <td><code>AWS_DEFAULT_REGION</code></td>
+                <td><span class="env-required no">Optional</span></td>
+                <td>Fallback for <code>AWS_REGION</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts">GitHub</a>
+        <a href="https://www.npmjs.com/package/recursive-llm-ts">npm</a>
+      </div>
+      <p class="footer-copy">
+        MIT License &mdash; Based on <a href="https://alexzhang13.github.io/blog/2025/rlm/">Recursive Language Models</a> by Alex Zhang &amp; Omar Khattab
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

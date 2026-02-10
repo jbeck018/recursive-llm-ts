@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Examples &amp; Demo - recursive-llm-ts</title>
+  <meta name="description" content="Interactive examples and demos for recursive-llm-ts. See structured outputs, file processing, and observability in action.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1f504;</text></svg>">
+</head>
+<body>
+  <!-- Header -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="site-logo">
+        <span class="logo-icon">R</span>
+        <span>recursive-llm-ts</span>
+      </a>
+      <button class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+      <nav class="site-nav">
+        <a href="index.html">Home</a>
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API</a>
+        <a href="examples.html" class="active">Examples</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts" class="nav-github">
+          <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main-content">
+    <!-- Interactive Demo -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Interactive Demo</h2>
+          <p>Explore different use cases with simulated output. Select an example and click Run to see how RLM processes each scenario.</p>
+        </div>
+
+        <div class="demo-container">
+          <div class="demo-header">
+            <span class="demo-dot red"></span>
+            <span class="demo-dot yellow"></span>
+            <span class="demo-dot green"></span>
+            <span style="margin-left: auto; font-size: 0.8125rem; color: var(--text-muted);">rlm-playground.ts</span>
+          </div>
+          <div class="demo-body">
+            <div class="demo-controls">
+              <select id="demo-example-select" class="demo-select">
+                <option value="completion">Basic Completion</option>
+                <option value="structured">Structured Output</option>
+                <option value="files">Local File Context</option>
+                <option value="s3">S3 File Context</option>
+                <option value="observability">Observability</option>
+              </select>
+              <button id="demo-run-btn" class="btn btn-primary" style="padding: 8px 20px; font-size: 0.875rem;">Run Example</button>
+            </div>
+            <div class="code-block" style="margin-top: 16px;">
+              <div class="code-header">
+                <span class="code-lang">TypeScript</span>
+                <button class="code-copy">Copy</button>
+              </div>
+              <pre><code id="demo-code" data-lang="typescript"></code></pre>
+            </div>
+            <div id="demo-output" class="demo-output" style="display: none;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Full Examples -->
+    <section class="section section-alt">
+      <div class="container">
+        <div class="section-header">
+          <h2>Complete Examples</h2>
+          <p>Copy-paste ready examples for common use cases.</p>
+        </div>
+
+        <!-- Example 1: Document Summarization -->
+        <div class="api-section">
+          <h3 id="example-summarization">Document Summarization</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Process arbitrarily large documents and generate summaries. The recursive engine handles context splitting automatically.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+import * as fs from 'fs';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  max_iterations: 20,
+});
+
+// Read a very large document
+const document = fs.readFileSync('research-paper.txt', 'utf-8');
+console.log(`Document size: ${document.length} characters`);
+
+const result = await rlm.completion(
+  'Provide a comprehensive summary of this research paper, including: ' +
+  'the main hypothesis, methodology, key findings, and conclusions.',
+  document
+);
+
+console.log('Summary:', result.result);
+console.log('LLM calls:', result.stats.llm_calls);
+console.log('Recursion depth:', result.stats.depth);
+
+await rlm.cleanup();</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 2: Call Transcript Analysis -->
+        <div class="api-section">
+          <h3 id="example-transcript">Call Transcript Analysis</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Extract structured data from sales call transcripts using Zod schemas with parallel execution.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+import { z } from 'zod';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+const callAnalysisSchema = z.object({
+  overallSentiment: z.number().min(1).max(5)
+    .describe('1=very negative, 5=very positive'),
+  sentimentExplanation: z.string(),
+  customerIntent: z.enum([
+    'purchase', 'support', 'complaint', 'inquiry', 'cancellation'
+  ]),
+  keyTopics: z.array(z.object({
+    topic: z.string(),
+    sentiment: z.enum(['positive', 'negative', 'neutral']),
+    quotes: z.array(z.string()),
+  })),
+  actionItems: z.array(z.object({
+    description: z.string(),
+    assignee: z.string(),
+    priority: z.enum(['high', 'medium', 'low']),
+  })),
+  summary: z.string(),
+});
+
+const result = await rlm.structuredCompletion(
+  'Analyze this sales call transcript comprehensively',
+  callTranscript,
+  callAnalysisSchema,
+  { parallelExecution: true, maxRetries: 3 }
+);
+
+// Fully typed result
+console.log('Sentiment:', result.result.overallSentiment);
+console.log('Intent:', result.result.customerIntent);
+console.log('Topics:', result.result.keyTopics.length);
+console.log('Action Items:', result.result.actionItems);
+
+await rlm.cleanup();</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 3: Codebase Analysis -->
+        <div class="api-section">
+          <h3 id="example-codebase">Codebase Analysis from Files</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Process an entire codebase directory and extract architectural insights.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM, FileContextBuilder } from 'recursive-llm-ts';
+import { z } from 'zod';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+const fileConfig = {
+  type: 'local' as const,
+  path: '/path/to/project/src',
+  extensions: ['.ts', '.tsx', '.js'],
+  excludePatterns: [
+    '*.test.ts',
+    '*.spec.ts',
+    'node_modules/**',
+    '__tests__/**',
+  ],
+  maxFileSize: 200_000,   // Skip files over 200KB
+  maxTotalSize: 5_000_000, // 5MB total limit
+};
+
+// Preview what files will be included
+const builder = new FileContextBuilder(fileConfig);
+const files = await builder.listMatchingFiles();
+console.log(`Will process ${files.length} files`);
+
+// Extract architecture info
+const archSchema = z.object({
+  layers: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    files: z.array(z.string()),
+  })),
+  patterns: z.array(z.string()),
+  dependencies: z.array(z.object({
+    from: z.string(),
+    to: z.string(),
+    type: z.enum(['import', 'api-call', 'event']),
+  })),
+  recommendations: z.array(z.string()),
+});
+
+const result = await rlm.structuredCompletionFromFiles(
+  'Analyze the architecture: identify layers, patterns, ' +
+  'key dependencies, and areas for improvement',
+  fileConfig,
+  archSchema
+);
+
+console.log('Architecture Layers:');
+for (const layer of result.result.layers) {
+  console.log(`  ${layer.name}: ${layer.description}`);
+}
+
+console.log('\nPatterns:', result.result.patterns);
+console.log('Files processed:', result.fileStorage?.files.length);
+
+await rlm.cleanup();</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 4: S3 Report Processing -->
+        <div class="api-section">
+          <h3 id="example-s3">S3 Report Processing</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Process documents from S3 or S3-compatible storage (MinIO, LocalStack, DigitalOcean Spaces).
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+import { z } from 'zod';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+});
+
+// AWS S3 with explicit credentials
+const awsResult = await rlm.completionFromFiles(
+  'Summarize the quarterly reports and identify trends',
+  {
+    type: 's3',
+    path: 'company-reports',
+    prefix: 'quarterly/2024/',
+    extensions: ['.md', '.txt', '.csv'],
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    },
+    region: 'us-west-2',
+  }
+);
+
+// MinIO (local S3-compatible)
+const minioResult = await rlm.completionFromFiles(
+  'Analyze the test results',
+  {
+    type: 's3',
+    path: 'test-data',
+    endpoint: 'http://localhost:9000',
+    credentials: {
+      accessKeyId: 'minioadmin',
+      secretAccessKey: 'minioadmin',
+    },
+  }
+);
+
+// Using env vars (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+const envResult = await rlm.completionFromFiles(
+  'What are the key metrics?',
+  {
+    type: 's3',
+    path: 'metrics-bucket',
+    prefix: 'daily/',
+    extensions: ['.json'],
+  }
+);
+
+console.log('S3 result:', awsResult.result);
+console.log('Files:', awsResult.fileStorage?.files.length);
+
+await rlm.cleanup();</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 5: Observability -->
+        <div class="api-section">
+          <h3 id="example-observability">Full Observability Setup</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Enable debug logging, OpenTelemetry tracing, and Langfuse integration simultaneously.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+
+  // Meta-agent for query optimization
+  meta_agent: {
+    enabled: true,
+    model: 'gpt-4o',  // Use a stronger model for optimization
+  },
+
+  // Full observability stack
+  observability: {
+    // Debug logging
+    debug: true,
+    log_output: 'stderr', // or 'stdout', or '/var/log/rlm.log'
+
+    // OpenTelemetry
+    trace_enabled: true,
+    trace_endpoint: 'localhost:4317',
+    service_name: 'my-rlm-app',
+
+    // Langfuse
+    langfuse_enabled: true,
+    langfuse_public_key: process.env.LANGFUSE_PUBLIC_KEY,
+    langfuse_secret_key: process.env.LANGFUSE_SECRET_KEY,
+    langfuse_host: 'https://cloud.langfuse.com',
+  },
+});
+
+const result = await rlm.completion(
+  'what happened in the meeting?', // Vague query - meta-agent will optimize
+  longMeetingTranscript
+);
+
+// Access trace events programmatically
+const events = rlm.getTraceEvents();
+
+console.log(`\nTrace Events (${events.length}):`);
+for (const event of events) {
+  const attrs = Object.entries(event.attributes)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+  console.log(`  [${event.type}] ${event.name} {${attrs}}`);
+  if (event.duration) {
+    console.log(`    Duration: ${event.duration}ms`);
+  }
+}
+
+await rlm.cleanup();</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 6: Custom Providers -->
+        <div class="api-section">
+          <h3 id="example-providers">Custom LLM Providers</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Use Azure OpenAI, Amazon Bedrock, Ollama, or any OpenAI-compatible API.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">import { RLM } from 'recursive-llm-ts';
+
+// Azure OpenAI
+const azureRlm = new RLM('gpt-4o', {
+  api_base: 'https://my-resource.openai.azure.com/openai/deployments/gpt-4o',
+  api_key: process.env.AZURE_API_KEY,
+  api_version: '2024-02-15-preview',
+});
+
+// Amazon Bedrock (via LiteLLM proxy)
+const bedrockRlm = new RLM('bedrock/anthropic.claude-3-sonnet-20240229-v1:0', {
+  api_base: 'http://localhost:4000', // LiteLLM proxy
+  api_key: process.env.LITELLM_API_KEY,
+});
+
+// Ollama (local models)
+const ollamaRlm = new RLM('openai/llama3.1', {
+  api_base: 'http://localhost:11434/v1',
+  api_key: 'ollama', // Ollama doesn't need a real key
+});
+
+// Any OpenAI-compatible API
+const customRlm = new RLM('openai/my-model', {
+  api_base: 'https://my-api.example.com/v1',
+  api_key: process.env.CUSTOM_API_KEY,
+});
+
+// All instances work the same way
+const result = await azureRlm.completion('Summarize', document);
+console.log(result.result);</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 7: Go Module -->
+        <div class="api-section">
+          <h3 id="example-go">Go Module Usage</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Use the RLM engine directly in Go projects for maximum performance.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Go</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="go">package main
+
+import (
+    "encoding/json"
+    "fmt"
+    "os"
+
+    "github.com/jbeck018/recursive-llm-ts/go/rlm"
+)
+
+func main() {
+    engine := rlm.New("gpt-4o-mini", rlm.Config{
+        MaxDepth:      5,
+        MaxIterations: 30,
+        APIKey:        os.Getenv("OPENAI_API_KEY"),
+        MetaAgent: &rlm.MetaAgentConfig{
+            Enabled: true,
+        },
+        Observability: &rlm.ObservabilityConfig{
+            Debug:        true,
+            TraceEnabled: true,
+        },
+    })
+
+    // Basic completion
+    answer, stats, err := engine.Completion(
+        "Summarize the key points",
+        largeDocument,
+    )
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+    fmt.Printf("Answer: %s\nLLM calls: %d\n", answer, stats.LlmCalls)
+
+    // Structured extraction
+    schema := &rlm.JSONSchema{
+        Type: "object",
+        Properties: map[string]*rlm.JSONSchema{
+            "summary":  {Type: "string"},
+            "score":    {Type: "number"},
+            "topics":   {Type: "array", Items: &rlm.JSONSchema{Type: "string"}},
+        },
+        Required: []string{"summary", "score", "topics"},
+    }
+
+    result, stats, err := engine.StructuredCompletion(
+        "Extract summary, score, and topics",
+        document,
+        &rlm.StructuredConfig{Schema: schema, MaxRetries: 3},
+    )
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
+
+    out, _ := json.MarshalIndent(result, "", "  ")
+    fmt.Println(string(out))
+}</code></pre>
+          </div>
+        </div>
+
+        <!-- Example 8: Docker -->
+        <div class="api-section">
+          <h3 id="example-docker">Docker Deployment</h3>
+          <p style="color: var(--text-secondary); margin-bottom: 16px;">
+            Production-ready multi-stage Docker build for minimal image size.
+          </p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Dockerfile</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="bash"># Stage 1: Build Go binary
+FROM golang:1.25-alpine AS go-builder
+WORKDIR /build
+COPY go/go.mod go/go.sum ./
+RUN go mod download
+COPY go/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o rlm-go ./cmd/rlm
+
+# Stage 2: Build Node.js
+FROM node:20-alpine AS node-builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Stage 3: Runtime
+FROM node:20-alpine
+WORKDIR /app
+
+COPY --from=node-builder /app/node_modules ./node_modules
+COPY --from=go-builder /build/rlm-go ./bin/rlm-go
+RUN chmod +x ./bin/rlm-go
+
+COPY package*.json ./
+COPY dist/ ./dist/
+
+ENV NODE_ENV=production
+ENV RLM_GO_BINARY=/app/bin/rlm-go
+ENV OPENAI_API_KEY=""
+
+CMD ["node", "dist/index.js"]</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-links">
+        <a href="guide.html">Guide</a>
+        <a href="api.html">API Reference</a>
+        <a href="examples.html">Examples</a>
+        <a href="https://github.com/jbeck018/recursive-llm-ts">GitHub</a>
+        <a href="https://www.npmjs.com/package/recursive-llm-ts">npm</a>
+      </div>
+      <p class="footer-copy">
+        MIT License &mdash; Based on <a href="https://alexzhang13.github.io/blog/2025/rlm/">Recursive Language Models</a> by Alex Zhang &amp; Omar Khattab
+      </p>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+  <script>
+    // Show output area when Run is clicked
+    document.getElementById('demo-run-btn')?.addEventListener('click', () => {
+      const output = document.getElementById('demo-output');
+      if (output) output.style.display = 'block';
+    });
+  </script>
+</body>
+</html>
