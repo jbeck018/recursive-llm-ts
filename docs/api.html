@@ -54,6 +54,7 @@
               <a href="#meta-agent-config" class="sidebar-link">MetaAgentConfig</a>
               <a href="#observability-config" class="sidebar-link">ObservabilityConfig</a>
               <a href="#file-storage-config" class="sidebar-link">FileStorageConfig</a>
+              <a href="#context-overflow-config" class="sidebar-link">ContextOverflowConfig</a>
             </div>
             <div class="sidebar-section">
               <div class="sidebar-title">Types</div>
@@ -661,6 +662,7 @@
   enableDebug(): this;
   enableCache(config?: Partial&lt;CacheConfig&gt;): this;
   enableRetry(config?: Partial&lt;RetryConfig&gt;): this;
+  withContextOverflow(config?: Partial&lt;ContextOverflowConfig&gt;): this;
   build(): RLM;
 }</code></pre>
           </div>
@@ -762,6 +764,18 @@
                 <td><code>FallbackConfig</code></td>
                 <td>&mdash;</td>
                 <td>Multi-provider fallback chain</td>
+              </tr>
+              <tr>
+                <td><code>context_overflow</code></td>
+                <td><code>ContextOverflowConfig</code></td>
+                <td>enabled</td>
+                <td>Context overflow recovery configuration</td>
+              </tr>
+              <tr>
+                <td><code>[key: string]</code></td>
+                <td><code>any</code></td>
+                <td>&mdash;</td>
+                <td>Passthrough params for LiteLLM (e.g., <code>custom_llm_provider</code>, <code>top_p</code>)</td>
               </tr>
             </tbody>
           </table>
@@ -946,6 +960,46 @@
             </tbody>
           </table>
 
+          <h2 id="context-overflow-config">ContextOverflowConfig</h2>
+          <p>Configuration for automatic context overflow recovery. Enabled by default.</p>
+          <table class="config-table">
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>enabled</code></td>
+                <td><code>boolean</code></td>
+                <td><code>true</code></td>
+                <td>Enable automatic overflow recovery</td>
+              </tr>
+              <tr>
+                <td><code>strategy</code></td>
+                <td><code>string</code></td>
+                <td><code>'mapreduce'</code></td>
+                <td>Reduction strategy: <code>'mapreduce'</code>, <code>'truncate'</code>, <code>'chunked'</code>, <code>'tfidf'</code>, <code>'textrank'</code>, or <code>'refine'</code></td>
+              </tr>
+              <tr>
+                <td><code>safety_margin</code></td>
+                <td><code>number</code></td>
+                <td><code>0.15</code></td>
+                <td>Fraction of token budget reserved for prompts/overhead (0.0&ndash;1.0)</td>
+              </tr>
+              <tr>
+                <td><code>max_reduction_attempts</code></td>
+                <td><code>number</code></td>
+                <td><code>3</code></td>
+                <td>Maximum reduction retries before failing</td>
+              </tr>
+              <tr>
+                <td><code>max_model_tokens</code></td>
+                <td><code>number</code></td>
+                <td><code>0</code></td>
+                <td>Override model token limit (0 = auto-detect from API errors)</td>
+              </tr>
+            </tbody>
+          </table>
+
           <!-- Result Types -->
           <h2 id="rlm-result">RLMResult</h2>
           <p>Return type for <code>completion()</code> and <code>completionFromFiles()</code>.</p>
@@ -1125,7 +1179,12 @@ class RLMProviderError extends RLMError   { provider?: string; statusCode?: numb
 class RLMBinaryError extends RLMError     { binaryPath?: string; }
 class RLMConfigError extends RLMError     { }
 class RLMSchemaError extends RLMError     { }
-class RLMAbortError extends RLMError      { }</code></pre>
+class RLMAbortError extends RLMError      { }
+class RLMContextOverflowError extends RLMError {
+  modelLimit?: number;       // Max tokens the model supports
+  requestTokens?: number;    // Tokens in the request
+  strategy?: string;         // Recovery strategy attempted
+}</code></pre>
           </div>
 
           <h2 id="classify-error">classifyError()</h2>

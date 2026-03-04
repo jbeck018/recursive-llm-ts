@@ -83,6 +83,10 @@ export interface RLMConfig {
 
   // Structured output config (internal - set by structuredCompletion)
   structured?: any;
+
+  // Allow arbitrary passthrough parameters for LiteLLM and other providers
+  // (e.g., custom_llm_provider, top_p, frequency_penalty, etc.)
+  [key: string]: any;
 }
 
 export interface FileStorageConfig {

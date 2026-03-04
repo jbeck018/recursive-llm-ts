@@ -55,6 +55,7 @@
               <a href="#file-storage" class="sidebar-link">File Storage</a>
               <a href="#meta-agent" class="sidebar-link">Meta-Agent</a>
               <a href="#observability" class="sidebar-link">Observability</a>
+              <a href="#context-overflow" class="sidebar-link">Context Overflow</a>
             </div>
             <div class="sidebar-section">
               <div class="sidebar-title">Advanced Features</div>
@@ -373,6 +374,151 @@ for (const e of events) {
   // [llm_call] gpt-4o-mini {tokens: 1247, duration_ms: 2341}
   // [span_end] rlm.completion {total_duration_ms: 5218}
 }</code></pre>
+          </div>
+
+          <!-- Context Overflow -->
+          <h2 id="context-overflow">Context Overflow Recovery</h2>
+          <p>When your context exceeds the model's token limit, RLM automatically detects the overflow and reduces the context using one of 6 strategies. This works with any OpenAI-compatible API including vLLM, Ollama, and Azure.</p>
+
+          <div class="callout info">
+            <div class="callout-title">Enabled by default</div>
+            <p>Context overflow recovery is enabled by default. No configuration needed &mdash; it detects overflow errors from the API and automatically retries with reduced context.</p>
+          </div>
+
+          <h3>How It Works</h3>
+          <ol>
+            <li>RLM sends the full context to the LLM API</li>
+            <li>If the API returns a context overflow error, RLM parses the token counts</li>
+            <li>The configured strategy reduces the context to fit within the model's limit</li>
+            <li>The reduced context is sent to the LLM for processing</li>
+            <li>Up to 3 reduction attempts (configurable) before giving up</li>
+          </ol>
+
+          <h3>Strategy Comparison</h3>
+          <table class="config-table">
+            <thead>
+              <tr><th>Strategy</th><th>How It Works</th><th>LLM Calls</th><th>Best For</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>mapreduce</code></td>
+                <td>Splits context into chunks, summarizes each with the LLM, combines summaries</td>
+                <td>N + 1</td>
+                <td>General purpose, preserves key info across full document</td>
+              </tr>
+              <tr>
+                <td><code>truncate</code></td>
+                <td>Keeps beginning and end of context, removes the middle</td>
+                <td>0</td>
+                <td>Fast, zero-cost; good when key info is at start/end</td>
+              </tr>
+              <tr>
+                <td><code>chunked</code></td>
+                <td>Extracts relevant chunks via LLM, merges the best ones</td>
+                <td>N + 1</td>
+                <td>Query-focused extraction from large documents</td>
+              </tr>
+              <tr>
+                <td><code>tfidf</code></td>
+                <td>Scores sentences by TF-IDF relevance to the query, keeps top sentences</td>
+                <td>0</td>
+                <td>Fast, zero-cost; good for keyword-heavy queries</td>
+              </tr>
+              <tr>
+                <td><code>textrank</code></td>
+                <td>Graph-based sentence ranking (like PageRank for text), keeps top sentences</td>
+                <td>0</td>
+                <td>Fast, zero-cost; good for extracting important sentences</td>
+              </tr>
+              <tr>
+                <td><code>refine</code></td>
+                <td>Processes chunks sequentially, refining a running summary</td>
+                <td>N</td>
+                <td>Best quality for narrative/sequential content</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>Which Strategy to Use</h3>
+          <ul>
+            <li><strong>Default (mapreduce)</strong> &mdash; Best all-around choice. Processes all chunks in parallel and combines results.</li>
+            <li><strong>Cost-sensitive?</strong> Use <code>truncate</code>, <code>tfidf</code>, or <code>textrank</code> &mdash; zero LLM calls for reduction.</li>
+            <li><strong>Query-focused?</strong> Use <code>tfidf</code> or <code>chunked</code> &mdash; they prioritize content relevant to your query.</li>
+            <li><strong>Narrative content?</strong> Use <code>refine</code> &mdash; processes sequentially to maintain document flow.</li>
+            <li><strong>Small models (&lt;8K)?</strong> Use <code>tfidf</code> or <code>textrank</code> &mdash; pure algorithmic, no risk of recursive overflow.</li>
+          </ul>
+
+          <h3>Configuration</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  max_tokens: 10000,
+
+  // Context overflow configuration
+  context_overflow: {
+    enabled: true,              // Default: true
+    strategy: 'mapreduce',      // Default: 'mapreduce'
+    safety_margin: 0.15,        // Reserve 15% for overhead (default)
+    max_reduction_attempts: 3,  // Max retries (default: 3)
+    max_model_tokens: 0,        // 0 = auto-detect from API errors
+  },
+});</code></pre>
+          </div>
+
+          <h3>Strategy Examples</h3>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Zero-cost TF-IDF for budget-conscious workloads
+const rlm = new RLM('qwen3-8b', {
+  api_base: 'http://localhost:8000/v1',
+  max_tokens: 10000,
+  context_overflow: {
+    strategy: 'tfidf',  // No extra LLM calls
+  },
+});
+
+// Refine for high-quality narrative summarization
+const rlm2 = new RLM('gpt-4o', {
+  context_overflow: {
+    strategy: 'refine',
+    safety_margin: 0.2,  // More headroom for longer responses
+  },
+});
+
+// Disable overflow recovery (fail fast)
+const rlm3 = new RLM('gpt-4o-mini', {
+  context_overflow: { enabled: false },
+});</code></pre>
+          </div>
+
+          <h3>Works with Structured Outputs</h3>
+          <p>Context overflow recovery works seamlessly with <code>structuredCompletion()</code>. If the context overflows during structured extraction, the engine reduces context first, then retries the extraction.</p>
+
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Even with 100K+ tokens of data, this works
+const result = await rlm.structuredCompletion(
+  'Extract customer insights',
+  hugeDataset,  // Exceeds model limit
+  schema,
+  { parallelExecution: true }
+);
+// Context is automatically reduced before extraction</code></pre>
+          </div>
+
+          <div class="callout warning">
+            <div class="callout-title">Response budget matters</div>
+            <p>If you set <code>max_tokens</code>, the overflow handler accounts for it when sizing chunks. For example, with a 32K model and <code>max_tokens: 10000</code>, only ~22K tokens are available for context. The handler automatically detects this from API errors like "max_tokens is too large".</p>
           </div>
 
           <!-- Advanced Features -->

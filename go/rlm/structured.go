@@ -843,7 +843,7 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 
 	var feedback strings.Builder
 	feedback.WriteString("VALIDATION ERROR - Your previous response was invalid.\n\n")
-	feedback.WriteString(fmt.Sprintf("ERROR: %s\n\n", errMsg))
+	fmt.Fprintf(&feedback, "ERROR: %s\n\n", errMsg)
 
 	// Extract what field caused the issue
 	if strings.Contains(errMsg, "missing required field:") {
@@ -852,17 +852,17 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 		fieldName = strings.TrimSpace(fieldName)
 
 		feedback.WriteString("SPECIFIC ISSUE:\n")
-		feedback.WriteString(fmt.Sprintf("The field '%s' is REQUIRED but was not provided.\n\n", fieldName))
+		fmt.Fprintf(&feedback, "The field '%s' is REQUIRED but was not provided.\n\n", fieldName)
 
 		// Find the schema for this field and provide details
 		if schema.Type == "object" && schema.Properties != nil {
 			if fieldSchema, exists := schema.Properties[fieldName]; exists {
 				feedback.WriteString("FIELD REQUIREMENTS:\n")
-				feedback.WriteString(fmt.Sprintf("- Field name: '%s'\n", fieldName))
-				feedback.WriteString(fmt.Sprintf("- Type: %s\n", fieldSchema.Type))
+				fmt.Fprintf(&feedback, "- Field name: '%s'\n", fieldName)
+				fmt.Fprintf(&feedback, "- Type: %s\n", fieldSchema.Type)
 
 				if fieldSchema.Type == "object" && len(fieldSchema.Required) > 0 {
-					feedback.WriteString(fmt.Sprintf("- This is an object with required fields: %s\n", strings.Join(fieldSchema.Required, ", ")))
+					fmt.Fprintf(&feedback, "- This is an object with required fields: %s\n", strings.Join(fieldSchema.Required, ", "))
 
 					if fieldSchema.Properties != nil {
 						feedback.WriteString("\nNESTED FIELD DETAILS:\n")
@@ -872,13 +872,13 @@ func buildValidationFeedback(validationErr error, schema *JSONSchema, previousRe
 							if isRequired {
 								requiredMark = " [REQUIRED]"
 							}
-							feedback.WriteString(fmt.Sprintf("  - %s: %s%s\n", nestedField, nestedSchema.Type, requiredMark))
+							fmt.Fprintf(&feedback, "  - %s: %s%s\n", nestedField, nestedSchema.Type, requiredMark)
 						}
 					}
 				}
 
 				if fieldSchema.Type == "array" && fieldSchema.Items != nil {
-					feedback.WriteString(fmt.Sprintf("- This is an array of: %s\n", fieldSchema.Items.Type))
+					fmt.Fprintf(&feedback, "- This is an array of: %s\n", fieldSchema.Items.Type)
 				}
 			}
 		}

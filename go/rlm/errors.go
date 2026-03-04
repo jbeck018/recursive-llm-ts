@@ -192,7 +192,31 @@ func parseContextOverflowMessage(msg string) (modelLimit int, requestTokens int,
 		}
 	}
 
-	// Pattern 3: "max_tokens" / "input too long" generic patterns
+	// Pattern 3: "max_tokens is too large" - response budget exceeds remaining capacity
+	// vLLM/OpenAI: "max_tokens' or 'max_completion_tokens' is too large: 10000.
+	//   This model's maximum context length is 32768 tokens and your request has 30168 input tokens"
+	// In this case, input tokens < model limit, but input + max_tokens > model limit.
+	// We report the effective total (input + max_tokens) as requestTokens.
+	if strings.Contains(lowerMsg, "max_tokens") && strings.Contains(lowerMsg, "too large") {
+		limit := extractNumber(msg, "maximum context length is ", " tokens")
+		inputTokens := extractNumber(msg, "your request has ", " input tokens")
+		if inputTokens == 0 {
+			inputTokens = extractNumber(msg, "your request has ", " tokens")
+		}
+		maxTokens := extractNumber(msg, "too large: ", ".")
+		if maxTokens == 0 {
+			maxTokens = extractNumber(msg, "too large: ", " ")
+		}
+		if limit > 0 && inputTokens > 0 && maxTokens > 0 {
+			return limit, inputTokens + maxTokens, true
+		}
+		// Fallback: if we got limit and input tokens, treat input as the overflow
+		if limit > 0 && inputTokens > 0 {
+			return limit, inputTokens, true
+		}
+	}
+
+	// Pattern 4: "input too long" / "too many tokens" generic patterns
 	if strings.Contains(lowerMsg, "input too long") || strings.Contains(lowerMsg, "too many tokens") || strings.Contains(lowerMsg, "too many input tokens") {
 		limit := extractNumber(msg, "limit is ", " tokens")
 		if limit == 0 {

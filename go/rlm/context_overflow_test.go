@@ -107,6 +107,124 @@ func TestIsContextOverflow_GenericError(t *testing.T) {
 	}
 }
 
+func TestIsContextOverflow_MaxTokensTooLarge_vLLM(t *testing.T) {
+	// vLLM/Ray Serve error when max_tokens exceeds remaining capacity
+	// This is the exact error from the user's production logs
+	response := `{"object":"error","message":"'max_tokens' or 'max_completion_tokens' is too large: 10000. This model's maximum context length is 32768 tokens and your request has 30168 input tokens (10000 > 32768 - 30168)","type":"BadRequestError","param":null,"code":400}`
+	apiErr := NewAPIError(400, response)
+
+	coe, ok := IsContextOverflow(apiErr)
+	if !ok {
+		t.Fatal("expected IsContextOverflow to detect max_tokens too large error")
+	}
+	if coe.ModelLimit != 32768 {
+		t.Errorf("expected ModelLimit 32768, got %d", coe.ModelLimit)
+	}
+	// Request tokens should include both input + max_tokens: 30168 + 10000 = 40168
+	if coe.RequestTokens != 40168 {
+		t.Errorf("expected RequestTokens 40168 (input 30168 + max_tokens 10000), got %d", coe.RequestTokens)
+	}
+}
+
+func TestIsContextOverflow_MaxCompletionTokensTooLarge(t *testing.T) {
+	// OpenAI newer API format with max_completion_tokens
+	response := `{"error":{"message":"'max_tokens' or 'max_completion_tokens' is too large: 5000. This model's maximum context length is 16384 tokens and your request has 14000 input tokens","type":"invalid_request_error","code":"invalid_request_error"}}`
+	apiErr := NewAPIError(400, response)
+
+	coe, ok := IsContextOverflow(apiErr)
+	if !ok {
+		t.Fatal("expected IsContextOverflow to detect max_completion_tokens too large error")
+	}
+	if coe.ModelLimit != 16384 {
+		t.Errorf("expected ModelLimit 16384, got %d", coe.ModelLimit)
+	}
+	if coe.RequestTokens != 19000 {
+		t.Errorf("expected RequestTokens 19000 (input 14000 + max_tokens 5000), got %d", coe.RequestTokens)
+	}
+}
+
+func TestGetResponseTokenBudget(t *testing.T) {
+	rlm := &RLM{
+		extraParams: map[string]interface{}{
+			"max_tokens": float64(10000),
+		},
+	}
+	obs := NewNoopObserver()
+	config := DefaultContextOverflowConfig()
+	reducer := newContextReducer(rlm, config, obs)
+
+	budget := reducer.getResponseTokenBudget(32768)
+	if budget != 10000 {
+		t.Errorf("expected response token budget 10000, got %d", budget)
+	}
+}
+
+func TestGetResponseTokenBudget_MaxCompletionTokens(t *testing.T) {
+	rlm := &RLM{
+		extraParams: map[string]interface{}{
+			"max_completion_tokens": float64(5000),
+		},
+	}
+	obs := NewNoopObserver()
+	config := DefaultContextOverflowConfig()
+	reducer := newContextReducer(rlm, config, obs)
+
+	budget := reducer.getResponseTokenBudget(32768)
+	if budget != 5000 {
+		t.Errorf("expected response token budget 5000, got %d", budget)
+	}
+}
+
+func TestGetResponseTokenBudget_NoMaxTokens(t *testing.T) {
+	rlm := &RLM{
+		extraParams: map[string]interface{}{
+			"temperature": 0.7,
+		},
+	}
+	obs := NewNoopObserver()
+	config := DefaultContextOverflowConfig()
+	reducer := newContextReducer(rlm, config, obs)
+
+	budget := reducer.getResponseTokenBudget(32768)
+	if budget != 0 {
+		t.Errorf("expected response token budget 0, got %d", budget)
+	}
+}
+
+func TestMakeMapPhaseParams(t *testing.T) {
+	rlm := &RLM{
+		extraParams: map[string]interface{}{
+			"max_tokens":          float64(10000),
+			"custom_llm_provider": "vllm",
+			"temperature":         0.7,
+		},
+	}
+	obs := NewNoopObserver()
+	config := DefaultContextOverflowConfig()
+	reducer := newContextReducer(rlm, config, obs)
+
+	params := reducer.makeMapPhaseParams(32768)
+
+	// max_tokens should be capped (32768/4 = 8192, but cap is 2000)
+	maxTokens, ok := params["max_tokens"].(int)
+	if !ok {
+		t.Fatal("expected max_tokens to be int in map phase params")
+	}
+	if maxTokens > 2000 {
+		t.Errorf("expected map phase max_tokens <= 2000, got %d", maxTokens)
+	}
+
+	// custom_llm_provider should be preserved
+	if params["custom_llm_provider"] != "vllm" {
+		t.Errorf("expected custom_llm_provider to be preserved, got %v", params["custom_llm_provider"])
+	}
+
+	// temperature should be preserved
+	if params["temperature"] != 0.7 {
+		t.Errorf("expected temperature to be preserved, got %v", params["temperature"])
+	}
+}
+
 func TestContextOverflowError_OverflowRatio(t *testing.T) {
 	tests := []struct {
 		limit    int
@@ -526,10 +644,10 @@ func TestContextOverflowError_ErrorChain(t *testing.T) {
 	if coe.APIError == nil {
 		t.Fatal("expected embedded APIError to be non-nil")
 	}
-	if coe.APIError.StatusCode != 400 {
-		t.Errorf("expected status 400, got %d", coe.APIError.StatusCode)
+	if coe.StatusCode != 400 {
+		t.Errorf("expected status 400, got %d", coe.StatusCode)
 	}
-	if coe.APIError.RLMError == nil {
+	if coe.RLMError == nil {
 		t.Fatal("expected embedded RLMError to be non-nil")
 	}
 

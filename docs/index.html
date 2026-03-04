@@ -40,7 +40,7 @@
     <section class="hero">
       <div class="container">
         <div class="hero-badge fade-in">
-          v4.5.0 &mdash; Streaming, Caching, Retry &amp; Events
+          v4.7.0 &mdash; Context Overflow Recovery
         </div>
         <h1 class="fade-in fade-in-delay-1">
           Process <span class="gradient-text">Unbounded Context</span><br>
@@ -82,7 +82,7 @@
             <div class="stat-label">Tokens</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value">120+</div>
+            <div class="stat-value">300+</div>
             <div class="stat-label">Tests</div>
           </div>
           <div class="stat-item">
@@ -160,6 +160,11 @@
             <div class="feature-icon yellow">&#9888;</div>
             <h3>Typed Errors</h3>
             <p>9 structured error classes with error codes, retryability flags, and actionable suggestions. Auto-classification from raw errors via classifyError().</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon green">&#128736;</div>
+            <h3>Context Overflow Recovery</h3>
+            <p>Automatic recovery when context exceeds model limits. 6 strategies: MapReduce, Truncate, Chunked, TF-IDF, TextRank, and Refine. Works with any model size.</p>
           </div>
         </div>
       </div>

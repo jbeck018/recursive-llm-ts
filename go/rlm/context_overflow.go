@@ -168,20 +168,70 @@ func newContextReducer(rlm *RLM, config ContextOverflowConfig, obs *Observer) *c
 	return &contextReducer{rlm: rlm, config: config, obs: obs}
 }
 
+// getResponseTokenBudget extracts max_tokens or max_completion_tokens from ExtraParams.
+// This represents how many tokens the API will reserve for the response, which must be
+// subtracted from the model's total capacity when sizing input chunks.
+func (cr *contextReducer) getResponseTokenBudget(modelLimit int) int {
+	if cr.rlm.extraParams == nil {
+		return 0
+	}
+	// Check max_completion_tokens first (newer API parameter), then max_tokens
+	for _, key := range []string{"max_completion_tokens", "max_tokens"} {
+		if v, ok := cr.rlm.extraParams[key]; ok {
+			switch n := v.(type) {
+			case float64:
+				return int(n)
+			case int:
+				return n
+			case int64:
+				return int(n)
+			}
+		}
+	}
+	return 0
+}
+
+// makeMapPhaseParams creates ExtraParams suitable for map-phase LLM calls (summarization).
+// It copies the user's ExtraParams but overrides max_tokens to a smaller value since
+// summaries don't need as many tokens as the original completion.
+func (cr *contextReducer) makeMapPhaseParams(modelLimit int) map[string]interface{} {
+	params := make(map[string]interface{})
+	// Copy all user params (custom_llm_provider, temperature, etc.)
+	for k, v := range cr.rlm.extraParams {
+		params[k] = v
+	}
+	// Override max_tokens for map-phase: use at most 1/4 of model limit or 2000, whichever is smaller
+	mapMaxTokens := modelLimit / 4
+	if mapMaxTokens > 2000 {
+		mapMaxTokens = 2000
+	}
+	if mapMaxTokens < 256 {
+		mapMaxTokens = 256
+	}
+	params["max_tokens"] = mapMaxTokens
+	// Remove max_completion_tokens if present to avoid conflicts
+	delete(params, "max_completion_tokens")
+	return params
+}
+
 // ReduceForCompletion handles context overflow for a regular completion.
 // It chunks the context, summarizes each chunk, and combines the summaries.
 func (cr *contextReducer) ReduceForCompletion(query string, context string, modelLimit int) (string, error) {
-	cr.obs.Debug("overflow", "Starting MapReduce context reduction: %d estimated tokens, limit %d", EstimateTokens(context), modelLimit)
+	cr.obs.Debug("overflow", "Starting context reduction: %d estimated tokens, limit %d", EstimateTokens(context), modelLimit)
 
 	// Calculate safe token budget per chunk
-	// Reserve tokens for: system prompt (~500), query, overhead, safety margin
+	// Reserve tokens for: system prompt (~500), query, overhead, safety margin, response budget
 	queryTokens := EstimateTokens(query)
-	overhead := 500 + queryTokens + int(float64(modelLimit)*cr.config.SafetyMargin)
+	responseTokens := cr.getResponseTokenBudget(modelLimit)
+	overhead := 500 + queryTokens + int(float64(modelLimit)*cr.config.SafetyMargin) + responseTokens
 	safeTokensPerChunk := modelLimit - overhead
 
 	if safeTokensPerChunk <= 0 {
-		safeTokensPerChunk = modelLimit / 2
+		safeTokensPerChunk = modelLimit / 4
 	}
+
+	cr.obs.Debug("overflow", "Budget: overhead=%d (query=%d, response=%d, safety=%d), chunk budget=%d",
+		overhead, queryTokens, responseTokens, int(float64(modelLimit)*cr.config.SafetyMargin), safeTokensPerChunk)
 
 	chunks := ChunkContext(context, safeTokensPerChunk)
 	cr.obs.Debug("overflow", "Split context into %d chunks (budget: %d tokens/chunk)", len(chunks), safeTokensPerChunk)
@@ -211,6 +261,9 @@ func (cr *contextReducer) ReduceForCompletion(query string, context string, mode
 func (cr *contextReducer) reduceByMapReduce(query string, chunks []string, modelLimit int, overhead int) (string, error) {
 	cr.obs.Debug("overflow", "Using MapReduce strategy with %d chunks", len(chunks))
 
+	// Use map-phase-specific params with reduced max_tokens for summarization
+	mapPhaseParams := cr.makeMapPhaseParams(modelLimit)
+
 	summaries := make([]string, len(chunks))
 	errs := make([]error, len(chunks))
 	var wg sync.WaitGroup
@@ -239,7 +292,7 @@ func (cr *contextReducer) reduceByMapReduce(query string, chunks []string, model
 				APIBase:     cr.rlm.apiBase,
 				APIKey:      cr.rlm.apiKey,
 				Timeout:     cr.rlm.timeoutSeconds,
-				ExtraParams: cr.rlm.extraParams,
+				ExtraParams: mapPhaseParams,
 			})
 			if err != nil {
 				errs[idx] = fmt.Errorf("map phase chunk %d: %w", idx+1, err)
@@ -254,14 +307,22 @@ func (cr *contextReducer) reduceByMapReduce(query string, chunks []string, model
 
 	wg.Wait()
 
-	// Check for errors
+	// Check for errors - if map phase overflows, fall back to tfidf
 	var mapErrors []string
+	hasOverflow := false
 	for _, err := range errs {
 		if err != nil {
 			mapErrors = append(mapErrors, err.Error())
+			if _, isOverflow := IsContextOverflow(err); isOverflow {
+				hasOverflow = true
+			}
 		}
 	}
 	if len(mapErrors) > 0 {
+		if hasOverflow {
+			cr.obs.Debug("overflow", "MapReduce map phase hit overflow, falling back to TF-IDF strategy")
+			return cr.reduceByTFIDF(strings.Join(chunks, "\n\n"), modelLimit, overhead)
+		}
 		return "", fmt.Errorf("MapReduce map phase failed: %s", strings.Join(mapErrors, "; "))
 	}
 
@@ -306,6 +367,9 @@ func (cr *contextReducer) reduceByTruncation(context string, modelLimit int, ove
 func (cr *contextReducer) reduceByChunkedExtraction(query string, chunks []string, modelLimit int, overhead int) (string, error) {
 	cr.obs.Debug("overflow", "Using chunked extraction strategy with %d chunks", len(chunks))
 
+	// Use map-phase-specific params with reduced max_tokens
+	mapPhaseParams := cr.makeMapPhaseParams(modelLimit)
+
 	results := make([]string, len(chunks))
 	errs := make([]error, len(chunks))
 	var wg sync.WaitGroup
@@ -333,7 +397,7 @@ func (cr *contextReducer) reduceByChunkedExtraction(query string, chunks []strin
 				APIBase:     cr.rlm.apiBase,
 				APIKey:      cr.rlm.apiKey,
 				Timeout:     cr.rlm.timeoutSeconds,
-				ExtraParams: cr.rlm.extraParams,
+				ExtraParams: mapPhaseParams,
 			})
 			if err != nil {
 				errs[idx] = fmt.Errorf("chunked extraction chunk %d: %w", idx+1, err)
@@ -350,12 +414,20 @@ func (cr *contextReducer) reduceByChunkedExtraction(query string, chunks []strin
 	wg.Wait()
 
 	var extractErrors []string
+	hasOverflow := false
 	for _, err := range errs {
 		if err != nil {
 			extractErrors = append(extractErrors, err.Error())
+			if _, isOverflow := IsContextOverflow(err); isOverflow {
+				hasOverflow = true
+			}
 		}
 	}
 	if len(extractErrors) > 0 {
+		if hasOverflow {
+			cr.obs.Debug("overflow", "Chunked extraction hit overflow, falling back to TF-IDF strategy")
+			return cr.reduceByTFIDF(strings.Join(chunks, "\n\n"), modelLimit, overhead)
+		}
 		return "", fmt.Errorf("chunked extraction failed: %s", strings.Join(extractErrors, "; "))
 	}
 
@@ -387,6 +459,9 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 		return "", fmt.Errorf("refine strategy: no chunks to process")
 	}
 
+	// Use map-phase-specific params with reduced max_tokens
+	mapPhaseParams := cr.makeMapPhaseParams(modelLimit)
+
 	// Phase 1: Generate initial answer from the first chunk
 	initialPrompt := fmt.Sprintf(
 		"Using the following context, provide a comprehensive answer to the question.\n"+
@@ -406,7 +481,7 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 		APIBase:     cr.rlm.apiBase,
 		APIKey:      cr.rlm.apiKey,
 		Timeout:     cr.rlm.timeoutSeconds,
-		ExtraParams: cr.rlm.extraParams,
+		ExtraParams: mapPhaseParams,
 	})
 	if err != nil {
 		return "", fmt.Errorf("refine initial chunk: %w", err)
@@ -438,7 +513,7 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 			APIBase:     cr.rlm.apiBase,
 			APIKey:      cr.rlm.apiKey,
 			Timeout:     cr.rlm.timeoutSeconds,
-			ExtraParams: cr.rlm.extraParams,
+			ExtraParams: mapPhaseParams,
 		})
 		if err != nil {
 			cr.obs.Debug("overflow", "Refine: chunk %d/%d failed: %v, keeping current answer", i+1, len(chunks), err)
@@ -495,72 +570,3 @@ func (cr *contextReducer) reduceByTextRank(context string, modelLimit int, overh
 	return result, nil
 }
 
-// ─── Adaptive Completion with Overflow Recovery ──────────────────────────────
-
-// completionWithOverflowRecovery wraps a completion call with automatic overflow detection and retry.
-// When a context overflow error is detected, it reduces the context and retries.
-func (r *RLM) completionWithOverflowRecovery(query string, context string, overflowConfig ContextOverflowConfig) (string, RLMStats, error) {
-	obs := r.observer
-	if obs == nil {
-		obs = NewNoopObserver()
-	}
-
-	// Try the normal completion first
-	result, stats, err := r.Completion(query, context)
-	if err == nil {
-		return result, stats, nil
-	}
-
-	// Check if it's a context overflow error
-	coe, isOverflow := IsContextOverflow(err)
-	if !isOverflow {
-		return "", stats, err // Not an overflow error, return original error
-	}
-
-	obs.Debug("overflow", "Context overflow detected: model limit %d, request %d tokens (%.1f%% over)",
-		coe.ModelLimit, coe.RequestTokens, (coe.OverflowRatio()-1)*100)
-
-	// Use detected limit or configured limit
-	modelLimit := coe.ModelLimit
-	if overflowConfig.MaxModelTokens > 0 {
-		modelLimit = overflowConfig.MaxModelTokens
-	}
-
-	reducer := newContextReducer(r, overflowConfig, obs)
-
-	// Attempt context reduction and retry
-	for attempt := 0; attempt < overflowConfig.MaxReductionAttempts; attempt++ {
-		obs.Debug("overflow", "Reduction attempt %d/%d", attempt+1, overflowConfig.MaxReductionAttempts)
-
-		reducedContext, reduceErr := reducer.ReduceForCompletion(query, context, modelLimit)
-		if reduceErr != nil {
-			obs.Error("overflow", "Context reduction failed: %v", reduceErr)
-			return "", stats, fmt.Errorf("context overflow recovery failed: %w", reduceErr)
-		}
-
-		obs.Debug("overflow", "Context reduced: %d -> %d chars", len(context), len(reducedContext))
-
-		// Retry with reduced context
-		result, stats, err = r.Completion(query, reducedContext)
-		if err == nil {
-			obs.Event("overflow.recovery_success", map[string]string{
-				"attempt":          fmt.Sprintf("%d", attempt+1),
-				"original_chars":   fmt.Sprintf("%d", len(context)),
-				"reduced_chars":    fmt.Sprintf("%d", len(reducedContext)),
-				"reduction_ratio":  fmt.Sprintf("%.2f", float64(len(reducedContext))/float64(len(context))),
-			})
-			return result, stats, nil
-		}
-
-		// If it overflows again, use the reduced context for the next attempt
-		if _, stillOverflow := IsContextOverflow(err); stillOverflow {
-			context = reducedContext
-			continue
-		}
-
-		// Different error, return it
-		return "", stats, err
-	}
-
-	return "", stats, fmt.Errorf("context overflow: exceeded %d reduction attempts, model limit is %d tokens", overflowConfig.MaxReductionAttempts, modelLimit)
-}
