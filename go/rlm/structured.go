@@ -102,12 +102,65 @@ func (r *RLM) structuredCompletionDirect(query string, context string, config *S
 		{Role: "user", Content: prompt},
 	}
 
+	// Track whether we've already reduced context for overflow recovery
+	contextReduced := false
+
 	for attempt := 0; attempt < config.MaxRetries; attempt++ {
 		result, err := r.callLLM(messages)
 		stats.LlmCalls++
 		stats.Iterations++
 
 		if err != nil {
+			// Check for context overflow and attempt automatic recovery
+			if coe, isOverflow := IsContextOverflow(err); isOverflow && !contextReduced && r.contextOverflow != nil && r.contextOverflow.Enabled {
+				r.observer.Debug("structured", "Context overflow detected on attempt %d: model limit %d, request %d tokens",
+					attempt+1, coe.ModelLimit, coe.RequestTokens)
+
+				modelLimit := coe.ModelLimit
+				if r.contextOverflow.MaxModelTokens > 0 {
+					modelLimit = r.contextOverflow.MaxModelTokens
+				}
+
+				reducer := newContextReducer(r, *r.contextOverflow, r.observer)
+				reducedContext, reduceErr := reducer.ReduceForCompletion(query, context, modelLimit)
+				if reduceErr != nil {
+					r.observer.Error("structured", "Context reduction failed: %v", reduceErr)
+					lastErr = err
+					continue
+				}
+
+				r.observer.Debug("structured", "Context reduced: %d -> %d chars, rebuilding prompt", len(context), len(reducedContext))
+				context = reducedContext
+				contextReduced = true
+
+				// Rebuild the prompt with reduced context
+				prompt = fmt.Sprintf(
+					"You are a data extraction assistant. Extract information from the context and return it as JSON.\n\n"+
+						"Context:\n%s\n\n"+
+						"Task: %s\n\n"+
+						"Required JSON Schema:\n%s%s\n\n"+
+						"%s"+
+						"CRITICAL INSTRUCTIONS:\n"+
+						"1. Return ONLY valid JSON - no explanations, no markdown, no code blocks\n"+
+						"2. The JSON must match the schema EXACTLY\n"+
+						"3. Include ALL required fields (see list above)\n"+
+						"4. Use correct data types (strings in quotes, numbers without quotes, arrays in [], objects in {})\n"+
+						"5. For arrays, return actual JSON arrays [] not objects\n"+
+						"6. For enum fields, use ONLY the EXACT values listed - do not paraphrase or substitute\n"+
+						"7. For nested objects, ensure ALL required fields within those objects are included\n"+
+						"8. Start your response directly with { or [ depending on the schema\n\n"+
+						"JSON Response:",
+					reducedContext, query, string(schemaJSON), requiredFieldsHint, constraints,
+				)
+				messages = []Message{
+					{Role: "system", Content: "You are a data extraction assistant. Respond only with valid JSON objects."},
+					{Role: "user", Content: prompt},
+				}
+				// Don't count this as a "used" attempt since it was an overflow, not a validation failure
+				attempt--
+				continue
+			}
+
 			lastErr = err
 			continue
 		}

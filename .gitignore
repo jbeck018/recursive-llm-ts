@@ -30,3 +30,6 @@ FIX_NOTES.md
 prompt-examples.ts
 test-conversation-insights.ts
 test-output.txt
+.howler-agents/
+.claude/
+.mcp.json

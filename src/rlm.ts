@@ -14,7 +14,7 @@
  * ```
  */
 
-import { RLMConfig, RLMResult, RLMStats, TraceEvent, FileStorageConfig } from './bridge-interface';
+import { RLMConfig, RLMResult, RLMStats, TraceEvent, FileStorageConfig, ContextOverflowConfig } from './bridge-interface';
 import { createBridge, BridgeType } from './bridge-factory';
 import { PythonBridge } from './bridge-interface';
 import { z } from 'zod';
@@ -189,6 +189,12 @@ export class RLMBuilder {
   /** Set the bridge type */
   bridge(type: BridgeType): this {
     this.bridgeType = type;
+    return this;
+  }
+
+  /** Configure context overflow recovery */
+  withContextOverflow(config?: ContextOverflowConfig): this {
+    this.config.context_overflow = { enabled: true, ...config };
     return this;
   }
 

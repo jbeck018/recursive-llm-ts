@@ -2,7 +2,7 @@
 export { RLM, RLMBuilder, RLMCompletionResult, RLMResultFormatter } from './rlm';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-export { RLMConfig, RLMResult, RLMStats, MetaAgentConfig, ObservabilityConfig, TraceEvent, FileStorageConfig } from './bridge-interface';
+export { RLMConfig, RLMResult, RLMStats, MetaAgentConfig, ObservabilityConfig, TraceEvent, FileStorageConfig, ContextOverflowConfig } from './bridge-interface';
 export { BridgeType } from './bridge-factory';
 export { StructuredRLMResult, SubTask, CoordinatorConfig, SchemaDecomposition } from './structured-types';
 export { RLMExtendedConfig, ValidationResult, ValidationIssue, ValidationLevel, validateConfig, assertValidConfig } from './config';
@@ -17,6 +17,7 @@ export {
   RLMBinaryError,
   RLMConfigError,
   RLMSchemaError,
+  RLMContextOverflowError,
   RLMAbortError,
   classifyError,
 } from './errors';

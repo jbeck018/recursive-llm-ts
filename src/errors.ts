@@ -164,6 +164,26 @@ export class RLMSchemaError extends RLMError {
   }
 }
 
+// ─── Context Overflow ─────────────────────────────────────────────────────────
+
+/** Thrown when the request exceeds the model's context window. */
+export class RLMContextOverflowError extends RLMError {
+  public readonly modelLimit: number;
+  public readonly requestTokens: number;
+
+  constructor(opts: { message: string; modelLimit: number; requestTokens: number }) {
+    super(opts.message, {
+      code: 'CONTEXT_OVERFLOW',
+      retryable: true,
+      suggestion: `Request has ${opts.requestTokens} tokens but model limit is ${opts.modelLimit}. ` +
+        'Enable context_overflow handling or reduce your context size.',
+    });
+    this.name = 'RLMContextOverflowError';
+    this.modelLimit = opts.modelLimit;
+    this.requestTokens = opts.requestTokens;
+  }
+}
+
 // ─── Abort ───────────────────────────────────────────────────────────────────
 
 /** Thrown when an operation is aborted via AbortController. */
@@ -186,6 +206,15 @@ export class RLMAbortError extends RLMError {
  */
 export function classifyError(err: Error | string, context?: { binaryPath?: string; provider?: string }): RLMError {
   const msg = typeof err === 'string' ? err : err.message;
+
+  // Context overflow
+  if (msg.toLowerCase().includes('maximum context length') || msg.toLowerCase().includes('context_length_exceeded') || msg.toLowerCase().includes('too many input tokens')) {
+    const limitMatch = msg.match(/maximum context length is (\d[\d,]*)/i);
+    const requestMatch = msg.match(/(?:has|requested) (\d[\d,]*)\s*(?:input )?tokens/i);
+    const modelLimit = limitMatch ? parseInt(limitMatch[1].replace(/,/g, ''), 10) : 0;
+    const requestTokens = requestMatch ? parseInt(requestMatch[1].replace(/,/g, ''), 10) : 0;
+    return new RLMContextOverflowError({ message: msg, modelLimit, requestTokens });
+  }
 
   // Rate limit
   if (msg.includes('429') || msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many requests')) {

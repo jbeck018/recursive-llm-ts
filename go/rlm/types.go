@@ -66,6 +66,7 @@ type Config struct {
 	ExtraParams       map[string]interface{}
 	MetaAgent         *MetaAgentConfig
 	Observability     *ObservabilityConfig
+	ContextOverflow   *ContextOverflowConfig
 }
 
 func ConfigFromMap(config map[string]interface{}) Config {
@@ -101,6 +102,27 @@ func ConfigFromMap(config map[string]interface{}) Config {
 		parsed.MetaAgent = ma
 	}
 
+	// Extract context_overflow config
+	if coConfig, ok := config["context_overflow"].(map[string]interface{}); ok {
+		co := DefaultContextOverflowConfig()
+		if v, ok := coConfig["enabled"].(bool); ok {
+			co.Enabled = v
+		}
+		if v, ok := toInt(coConfig["max_model_tokens"]); ok {
+			co.MaxModelTokens = v
+		}
+		if v, ok := coConfig["strategy"].(string); ok {
+			co.Strategy = v
+		}
+		if v, ok := coConfig["safety_margin"].(float64); ok {
+			co.SafetyMargin = v
+		}
+		if v, ok := toInt(coConfig["max_reduction_attempts"]); ok {
+			co.MaxReductionAttempts = v
+		}
+		parsed.ContextOverflow = &co
+	}
+
 	for key, value := range config {
 		switch key {
 		case "recursive_model":
@@ -133,8 +155,9 @@ func ConfigFromMap(config map[string]interface{}) Config {
 			"meta_agent", "observability", "debug", "trace_enabled",
 			"trace_endpoint", "service_name", "log_output",
 			"langfuse_enabled", "langfuse_public_key",
-			"langfuse_secret_key", "langfuse_host":
-			// ignore bridge-only config, meta_agent, observability (handled above/separately)
+			"langfuse_secret_key", "langfuse_host",
+			"context_overflow":
+			// ignore bridge-only config, meta_agent, observability, context_overflow (handled above/separately)
 		default:
 			parsed.ExtraParams[key] = value
 		}

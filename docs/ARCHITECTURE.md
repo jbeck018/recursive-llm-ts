@@ -55,8 +55,8 @@ This architecture provides:
 
 ### Errors (`src/errors.ts`)
 - `RLMError` base class with `code`, `retryable`, `suggestion`
-- Specific error types: `RLMValidationError`, `RLMRateLimitError`, `RLMTimeoutError`, `RLMProviderError`, `RLMBinaryError`, `RLMConfigError`, `RLMSchemaError`, `RLMAbortError`
-- `classifyError()` auto-classifies raw errors into typed hierarchy
+- Specific error types: `RLMValidationError`, `RLMRateLimitError`, `RLMTimeoutError`, `RLMProviderError`, `RLMBinaryError`, `RLMConfigError`, `RLMSchemaError`, `RLMAbortError`, `RLMContextOverflowError`
+- `classifyError()` auto-classifies raw errors into typed hierarchy (detects OpenAI, Azure, vLLM overflow patterns)
 
 ### Streaming (`src/streaming.ts`)
 - `RLMStream<T>` -- async iterable stream of typed chunks
@@ -129,6 +129,23 @@ RLM.structuredCompletion(query, context, zodSchema)
   → Return typed result
 ```
 
+### Context Overflow Recovery Flow
+```
+RLM engine attempts LLM call
+  → API returns context_length_exceeded (400/413)
+  → classifyError() detects overflow pattern
+  → RLMContextOverflowError created (modelLimit, requestTokens)
+  → ContextReducer.ReduceForCompletion(query, context, limit)
+    → Strategy dispatch:
+      mapreduce: chunks → parallel LLM summarize → merge
+      truncate:  drop tokens from end → findBreakPoint()
+      chunked:   chunks → sequential LLM extract → join
+      tfidf:     SplitSentences → ComputeTFIDF → top-k selection
+      textrank:  BuildSimilarityGraph → PageRank → top-k selection
+      refine:    chunks → sequential LLM refine with accumulation
+  → Retry with reduced context (up to max_reduction_attempts)
+```
+
 ## Go Binary Architecture
 
 ### Key Components
@@ -138,6 +155,9 @@ RLM.structuredCompletion(query, context, zodSchema)
 - **`meta_agent.go`** -- Query optimization heuristics
 - **`observability.go`** -- OTEL tracing, Langfuse integration, debug logging
 - **`repl.go`** -- JavaScript execution using goja engine
+- **`context_overflow.go`** -- Context overflow detection, error classification, 6 reduction strategies
+- **`tfidf.go`** -- TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, IDF scoring
+- **`textrank.go`** -- TextRank graph-based ranking: cosine similarity graph, PageRank iteration
 
 ### Binary Resolution Order
 1. `RLMConfig.go_binary_path`

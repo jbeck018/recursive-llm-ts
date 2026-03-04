@@ -14,6 +14,7 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 
 **Performance & Resilience**
 - **Pure Go Backend** - 50x faster startup, 3x less memory vs Python
+- **Context Overflow Recovery** - Automatic detection and 6 reduction strategies (mapreduce, truncate, chunked, tfidf, textrank, refine)
 - **Caching** - Exact-match caching with in-memory and file-based backends
 - **Retry & Fallback** - Exponential backoff, jitter, and multi-provider fallback chains
 - **AbortController** - Cancel any operation mid-flight
@@ -31,7 +32,7 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 - **Meta-Agent Mode** - Automatically optimize queries for better results
 - **Observability** - OpenTelemetry tracing, Langfuse integration, and debug logging
 - **File Storage** - Process local directories or S3/MinIO/LocalStack buckets as LLM context
-- **120+ Tests** - Comprehensive Vitest test suite
+- **150+ Tests** - Comprehensive Vitest + Go test suites
 
 ## Installation
 
@@ -281,12 +282,18 @@ const results = await rlm.batchCompletion([
 Rich error hierarchy with actionable information:
 
 ```typescript
-import { RLMRateLimitError, RLMValidationError, RLMTimeoutError } from 'recursive-llm-ts';
+import {
+  RLMRateLimitError, RLMValidationError,
+  RLMTimeoutError, RLMContextOverflowError
+} from 'recursive-llm-ts';
 
 try {
   const result = await rlm.completion(query, context);
 } catch (err) {
-  if (err instanceof RLMRateLimitError) {
+  if (err instanceof RLMContextOverflowError) {
+    console.log(`Context overflow: ${err.requestTokens} tokens > ${err.modelLimit} limit`);
+    // Enable context_overflow config to auto-recover from this
+  } else if (err instanceof RLMRateLimitError) {
     console.log(`Rate limited. Retry after: ${err.retryAfter}s`);
   } else if (err instanceof RLMValidationError) {
     console.log(`Schema mismatch:`, err.zodErrors);
@@ -296,6 +303,57 @@ try {
   // All RLM errors have: err.code, err.retryable, err.suggestion
 }
 ```
+
+### Context Overflow Handling
+
+Automatically detect and recover from context window overflows. When your input exceeds the model's token limit, RLM catches the error and applies a reduction strategy to fit the context within bounds.
+
+```typescript
+const rlm = new RLM('gpt-4o-mini', {
+  api_key: process.env.OPENAI_API_KEY,
+  context_overflow: {
+    enabled: true,           // Enable overflow recovery (default: true)
+    strategy: 'tfidf',       // Reduction strategy (see table below)
+    max_model_tokens: 32768, // Override auto-detected limit (optional)
+    safety_margin: 0.15,     // Reserve 15% for prompts/overhead (default: 0.15)
+    max_reduction_attempts: 3, // Max retry attempts (default: 3)
+  }
+});
+
+// Process a document that may exceed the model's context window
+const result = await rlm.completion(
+  'Summarize the key findings',
+  veryLargeDocument  // If too large, auto-reduces and retries
+);
+```
+
+**Builder API:**
+```typescript
+const rlm = RLM.builder('gpt-4o-mini')
+  .apiKey(process.env.OPENAI_API_KEY!)
+  .withContextOverflow({ strategy: 'textrank', max_model_tokens: 32768 })
+  .build();
+```
+
+**Strategy Comparison:**
+
+| Strategy | API Calls | Speed | Quality | Best For |
+|----------|-----------|-------|---------|----------|
+| `mapreduce` | Many (parallel) | Medium | High | General-purpose, large documents |
+| `truncate` | 0 | Fastest | Low | Quick-and-dirty, when beginning of doc matters |
+| `chunked` | Many (sequential) | Slow | High | Detailed extraction from specific sections |
+| `tfidf` | 0 | Fast | Medium | Fast first pass, keyword-rich documents |
+| `textrank` | 0 | Fast | Medium-High | Documents with clear sentence structure |
+| `refine` | Many (sequential) | Slow | Highest | When quality matters most, iterative refinement |
+
+**Strategy Details:**
+
+- **`mapreduce`** (default) - Splits context into chunks, summarizes each in parallel via LLM calls, then merges summaries. Good balance of quality and speed.
+- **`truncate`** - Drops tokens from the end to fit the budget. Zero API calls, but loses information. Best when the beginning of the document is most important.
+- **`chunked`** - Processes chunks sequentially, extracting relevant content from each. Higher quality than mapreduce for targeted extraction.
+- **`tfidf`** - Pure Go, zero API calls. Uses TF-IDF scoring to select the most informative sentences. Preserves original document order. Great for a fast, no-cost first pass.
+- **`textrank`** - Pure Go, zero API calls. Graph-based sentence ranking using PageRank over cosine-similarity of TF-IDF vectors. Better at identifying structurally important sentences than plain TF-IDF.
+- **`refine`** - Sequential iterative refinement. Processes chunks one at a time, building and refining an answer progressively. Highest quality but slowest, as each chunk sees the accumulated context.
 
 ### Config Validation
 
@@ -739,7 +797,10 @@ interface RLMConfig {
   temperature?: number;          // Sampling temperature
   max_tokens?: number;           // Maximum tokens in response
 
-  // New in v5: Caching, retry, fallback
+  // Context overflow recovery
+  context_overflow?: ContextOverflowConfig;
+
+  // Caching, retry, fallback
   cache?: CacheConfig;           // Cache configuration
   retry?: RetryConfig;           // Retry configuration
   fallback?: FallbackConfig;     // Fallback model configuration
@@ -766,6 +827,14 @@ interface RetryConfig {
 interface FallbackConfig {
   models?: string[];             // Ordered fallback models
   strategy?: 'sequential';      // Fallback strategy
+}
+
+interface ContextOverflowConfig {
+  enabled?: boolean;             // Enable overflow recovery (default: true)
+  max_model_tokens?: number;     // Override auto-detected model limit (0 = auto-detect)
+  strategy?: 'mapreduce' | 'truncate' | 'chunked' | 'tfidf' | 'textrank' | 'refine';
+  safety_margin?: number;        // Fraction to reserve for overhead (default: 0.15)
+  max_reduction_attempts?: number; // Max reduction retries (default: 3)
 }
 
 interface MetaAgentConfig {
@@ -848,6 +917,7 @@ class RLMTimeoutError extends RLMError { elapsed; limit; }
 class RLMProviderError extends RLMError { statusCode; provider; }
 class RLMBinaryError extends RLMError { binaryPath; }
 class RLMConfigError extends RLMError { field; value; }
+class RLMContextOverflowError extends RLMError { modelLimit; requestTokens; }
 class RLMSchemaError extends RLMError { path; constraint; }
 class RLMAbortError extends RLMError {}
 ```

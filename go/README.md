@@ -159,6 +159,11 @@ All fields in `config` are optional and have defaults:
 | `max_iterations` | int | 30 | Maximum REPL iterations per call |
 | `temperature` | float | 0.7 | LLM temperature (0-2) |
 | `timeout` | int | 60 | HTTP timeout in seconds |
+| `context_overflow.enabled` | bool | true | Enable context overflow recovery |
+| `context_overflow.strategy` | string | `mapreduce` | Reduction strategy: mapreduce, truncate, chunked, tfidf, textrank, refine |
+| `context_overflow.max_model_tokens` | int | 0 (auto) | Override detected model token limit |
+| `context_overflow.safety_margin` | float | 0.15 | Fraction reserved for prompt overhead |
+| `context_overflow.max_reduction_attempts` | int | 3 | Max retry attempts |
 
 Any other fields in `config` are passed as extra parameters to the LLM API.
 
@@ -258,7 +263,10 @@ rlm/                         # Public package (importable)
 ├── prompt.go                # System prompt builder
 ├── repl.go                  # JavaScript REPL (goja)
 ├── openai.go                # OpenAI API client
-└── errors.go                # Error types
+├── errors.go                # Error types
+├── context_overflow.go      # Context overflow detection + 6 reduction strategies
+├── tfidf.go                 # TF-IDF extractive compression (pure Go)
+└── textrank.go              # TextRank graph-based ranking with PageRank
 ```
 
 ## Error Handling

@@ -20,6 +20,7 @@ type RLM struct {
 	stats            RLMStats
 	observer         *Observer
 	metaAgent        *MetaAgent
+	contextOverflow  *ContextOverflowConfig
 }
 
 func New(model string, config Config) *RLM {
@@ -55,6 +56,15 @@ func New(model string, config Config) *RLM {
 	// Setup meta-agent if enabled
 	if config.MetaAgent != nil && config.MetaAgent.Enabled {
 		r.metaAgent = NewMetaAgent(r, *config.MetaAgent, obs)
+	}
+
+	// Setup context overflow handling
+	if config.ContextOverflow != nil {
+		r.contextOverflow = config.ContextOverflow
+	} else {
+		// Enable by default with sensible defaults
+		defaultConfig := DefaultContextOverflowConfig()
+		r.contextOverflow = &defaultConfig
 	}
 
 	return r

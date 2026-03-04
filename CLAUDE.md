@@ -73,7 +73,8 @@ TypeScript (parses result, exposes trace events)
 
 **TypeScript:**
 - `src/rlm.ts` - Main RLM class, Zod->JSON Schema conversion, trace event access, file-based completions
-- `src/bridge-interface.ts` - Config types (RLMConfig, MetaAgentConfig, ObservabilityConfig, TraceEvent, FileStorageConfig)
+- `src/bridge-interface.ts` - Config types (RLMConfig, MetaAgentConfig, ObservabilityConfig, ContextOverflowConfig, TraceEvent, FileStorageConfig)
+- `src/errors.ts` - Error hierarchy including RLMContextOverflowError, classifyError()
 - `src/file-storage.ts` - File storage providers (LocalFileStorage, S3FileStorage), FileContextBuilder, S3StorageError
 - `src/go-bridge.ts` - Spawns Go binary, handles stdin/stdout JSON IPC
 - `src/bridge-factory.ts` - Runtime detection, bridge selection (Go preferred, Python fallback)
@@ -88,6 +89,9 @@ TypeScript (parses result, exposes trace events)
 - `go/rlm/observability.go` - OTEL tracing, Langfuse integration, debug logging
 - `go/rlm/repl.go` - JavaScript REPL executor using goja engine
 - `go/rlm/types.go` - Type definitions (Config, MetaAgentConfig, ObservabilityConfig)
+- `go/rlm/context_overflow.go` - Context overflow detection, 6 reduction strategies (mapreduce, truncate, chunked, tfidf, textrank, refine)
+- `go/rlm/tfidf.go` - TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, scoring
+- `go/rlm/textrank.go` - TextRank graph-based ranking: cosine similarity, PageRank iteration
 
 ### Binary Resolution
 
@@ -117,6 +121,21 @@ When meta-agent is enabled:
 3. For structured queries, schema fields are referenced explicitly
 4. Optimized query is passed to the RLM engine
 5. Falls back to original query on error
+
+### Context Overflow Flow
+
+When context overflow is enabled (default):
+1. Go engine attempts LLM call
+2. If API returns context_length_exceeded error, `classifyError()` detects it
+3. Error is parsed to extract `modelLimit` and `requestTokens`
+4. `ContextReducer` applies configured strategy:
+   - `mapreduce`: Split into chunks → parallel LLM summarization → merge
+   - `truncate`: Drop tokens from end to fit budget
+   - `chunked`: Sequential extraction from each chunk
+   - `tfidf`: Pure Go extractive compression via TF-IDF sentence scoring
+   - `textrank`: Graph-based PageRank over cosine-similarity of TF-IDF vectors
+   - `refine`: Sequential iterative LLM refinement across chunks
+5. Reduced context retried (up to `max_reduction_attempts`)
 
 ### File Storage Flow
 

@@ -1,5 +1,35 @@
 # Changelog
 
+## [4.6.0] - 2026-03-04
+
+### Context Overflow Detection & Recovery
+- **Automatic context overflow detection** - Classifies OpenAI, Azure, vLLM, and generic `context_length_exceeded` errors
+- **6 reduction strategies** for automatic context recovery:
+  - `mapreduce` (default) -- Parallel LLM summarization of chunks, then merge
+  - `truncate` -- Zero-cost token dropping from the end
+  - `chunked` -- Sequential extraction from each chunk
+  - `tfidf` -- Pure Go TF-IDF extractive compression, zero API calls
+  - `textrank` -- Graph-based PageRank sentence ranking with cosine similarity
+  - `refine` -- Sequential iterative LLM refinement (LlamaIndex-style)
+- **`ContextOverflowConfig`** -- New config section: `strategy`, `max_model_tokens`, `safety_margin`, `max_reduction_attempts`
+- **`RLMContextOverflowError`** -- Typed error with `modelLimit`, `requestTokens`, and `suggestion`
+- **`RLMBuilder.withContextOverflow()`** -- Fluent builder method for overflow config
+
+### New Go Packages
+- **`go/rlm/tfidf.go`** -- TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, IDF scoring, budget-fitting selection
+- **`go/rlm/textrank.go`** -- TextRank graph-based ranking: TF-IDF vector construction, cosine similarity graph, PageRank iteration with configurable damping/convergence
+- **`go/rlm/context_overflow.go`** -- Core overflow handling: error detection, strategy dispatch, chunking, break-point detection
+
+### Testing
+- 150 Go tests: context overflow detection, all 6 strategies, TF-IDF sentence/token/score tests, TextRank graph/PageRank/compression tests
+- 150 TypeScript vitest tests: error classification, config types, builder integration, serialization
+
+## [4.5.0] - 2026-02-20
+
+### Improvements
+- Streaming, caching, retry, events, and error handling documentation updates
+- GitHub Pages documentation improvements
+
 ## [4.4.0] - 2026-02-09
 
 ### ✨ New Features

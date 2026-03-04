@@ -41,6 +41,19 @@ export interface TraceEvent {
   parent_id?: string;
 }
 
+export interface ContextOverflowConfig {
+  /** Enable automatic context overflow recovery (default: true) */
+  enabled?: boolean;
+  /** Override detected model token limit (0 = auto-detect from API errors) */
+  max_model_tokens?: number;
+  /** Strategy: 'mapreduce' (default), 'truncate', 'chunked', 'tfidf', 'textrank', or 'refine' */
+  strategy?: 'mapreduce' | 'truncate' | 'chunked' | 'tfidf' | 'textrank' | 'refine';
+  /** Fraction of token budget to reserve for prompts/overhead (default: 0.15) */
+  safety_margin?: number;
+  /** Maximum reduction attempts before giving up (default: 3) */
+  max_reduction_attempts?: number;
+}
+
 export interface RLMConfig {
   recursive_model?: string;
   api_base?: string;
@@ -55,6 +68,9 @@ export interface RLMConfig {
 
   // Observability configuration
   observability?: ObservabilityConfig;
+
+  // Context overflow recovery configuration
+  context_overflow?: ContextOverflowConfig;
 
   // Shorthand for observability.debug
   debug?: boolean;
