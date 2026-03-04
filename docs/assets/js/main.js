@@ -106,49 +106,80 @@ function escapeHtml(text) {
 }
 
 function highlightTS(html) {
+  // Use placeholder-based approach to prevent regexes from matching inside already-highlighted spans
+  var placeholders = [];
+  function placeholder(text, cls) {
+    var id = '\x00PH' + placeholders.length + '\x00';
+    placeholders.push('<span class="token-' + cls + '">' + text + '</span>');
+    return id;
+  }
   // Comments
-  html = html.replace(/(\/\/.*)/g, '<span class="token-comment">$1</span>');
+  html = html.replace(/(\/\/.*)/g, function(m) { return placeholder(m, 'comment'); });
   // Strings (double and single quotes, template literals)
-  html = html.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="token-string">$1</span>');
-  html = html.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="token-string">$1</span>');
-  html = html.replace(/(`(?:[^`\\]|\\.)*`)/g, '<span class="token-string">$1</span>');
+  html = html.replace(/('(?:[^'\\]|\\.)*')/g, function(m) { return placeholder(m, 'string'); });
+  html = html.replace(/("(?:[^"\\]|\\.)*")/g, function(m) { return placeholder(m, 'string'); });
+  html = html.replace(/(`(?:[^`\\]|\\.)*`)/g, function(m) { return placeholder(m, 'string'); });
   // Keywords
   html = html.replace(/\b(import|from|export|const|let|var|function|return|async|await|new|class|interface|type|extends|implements|if|else|for|while|switch|case|break|continue|try|catch|throw|typeof|instanceof|of|in)\b/g,
-    '<span class="token-keyword">$1</span>');
+    function(m) { return placeholder(m, 'keyword'); });
   // Types
   html = html.replace(/\b(string|number|boolean|void|null|undefined|any|never|Promise|Array|Record|Partial)\b/g,
-    '<span class="token-type">$1</span>');
+    function(m) { return placeholder(m, 'type'); });
   // Numbers
-  html = html.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="token-number">$1</span>');
+  html = html.replace(/\b(\d+(?:\.\d+)?)\b/g, function(m) { return placeholder(m, 'number'); });
   // Special values
-  html = html.replace(/\b(true|false|null|undefined)\b/g, '<span class="token-const">$1</span>');
+  html = html.replace(/\b(true|false|null|undefined)\b/g, function(m) { return placeholder(m, 'const'); });
+  // Restore placeholders
+  for (var i = 0; i < placeholders.length; i++) {
+    html = html.replace('\x00PH' + i + '\x00', placeholders[i]);
+  }
   return html;
 }
 
 function highlightBash(html) {
+  var placeholders = [];
+  function placeholder(text, cls) {
+    var id = '\x00PH' + placeholders.length + '\x00';
+    placeholders.push('<span class="token-' + cls + '">' + text + '</span>');
+    return id;
+  }
   // Comments
-  html = html.replace(/(#.*)/g, '<span class="token-comment">$1</span>');
+  html = html.replace(/(#.*)/g, function(m) { return placeholder(m, 'comment'); });
   // Strings
-  html = html.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="token-string">$1</span>');
-  html = html.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="token-string">$1</span>');
+  html = html.replace(/('(?:[^'\\]|\\.)*')/g, function(m) { return placeholder(m, 'string'); });
+  html = html.replace(/("(?:[^"\\]|\\.)*")/g, function(m) { return placeholder(m, 'string'); });
   // Keywords
   html = html.replace(/\b(export|npm|cd|go|node|ts-node|mkdir|cp|mv|rm|git|docker)\b/g,
-    '<span class="token-keyword">$1</span>');
+    function(m) { return placeholder(m, 'keyword'); });
+  // Restore placeholders
+  for (var i = 0; i < placeholders.length; i++) {
+    html = html.replace('\x00PH' + i + '\x00', placeholders[i]);
+  }
   return html;
 }
 
 function highlightGo(html) {
+  var placeholders = [];
+  function placeholder(text, cls) {
+    var id = '\x00PH' + placeholders.length + '\x00';
+    placeholders.push('<span class="token-' + cls + '">' + text + '</span>');
+    return id;
+  }
   // Comments
-  html = html.replace(/(\/\/.*)/g, '<span class="token-comment">$1</span>');
+  html = html.replace(/(\/\/.*)/g, function(m) { return placeholder(m, 'comment'); });
   // Strings
-  html = html.replace(/("(?:[^"\\]|\\.)*")/g, '<span class="token-string">$1</span>');
-  html = html.replace(/(`(?:[^`]*)`)/g, '<span class="token-string">$1</span>');
+  html = html.replace(/("(?:[^"\\]|\\.)*")/g, function(m) { return placeholder(m, 'string'); });
+  html = html.replace(/(`(?:[^`]*)`)/g, function(m) { return placeholder(m, 'string'); });
   // Keywords
   html = html.replace(/\b(package|import|func|return|var|const|type|struct|interface|if|else|for|range|switch|case|break|go|defer|chan|select|map|make|new|nil|err)\b/g,
-    '<span class="token-keyword">$1</span>');
+    function(m) { return placeholder(m, 'keyword'); });
   // Types
   html = html.replace(/\b(string|int|int64|float64|bool|error|byte)\b/g,
-    '<span class="token-type">$1</span>');
+    function(m) { return placeholder(m, 'type'); });
+  // Restore placeholders
+  for (var i = 0; i < placeholders.length; i++) {
+    html = html.replace('\x00PH' + i + '\x00', placeholders[i]);
+  }
   return html;
 }
 
