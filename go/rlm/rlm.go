@@ -109,8 +109,41 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 		r.stats.Iterations = iteration + 1
 		r.observer.Debug("rlm", "Iteration %d/%d at depth %d", iteration+1, r.maxIterations, r.currentDepth)
 
+		// Pre-emptive message overflow check: prune older messages if history is growing too large.
+		// Regular completion stores context in the REPL env (not messages), but the iterative
+		// loop appends assistant+user messages each iteration which can accumulate.
+		if modelLimit := r.getModelTokenLimit(); modelLimit > 0 && len(messages) > 4 {
+			msgTokens := EstimateMessagesTokens(messages)
+			responseTokens := r.getResponseTokenBudget()
+			safetyMargin := 0.15
+			if r.contextOverflow != nil && r.contextOverflow.SafetyMargin > 0 {
+				safetyMargin = r.contextOverflow.SafetyMargin
+			}
+			available := modelLimit - responseTokens - int(float64(modelLimit)*safetyMargin)
+			if msgTokens > available {
+				r.observer.Debug("rlm", "Message history overflow: %d tokens > %d available, pruning middle messages", msgTokens, available)
+				messages = pruneMessages(messages, available)
+			}
+		}
+
 		response, err := r.callLLM(messages)
 		if err != nil {
+			// Check for context overflow and attempt recovery
+			if r.contextOverflow != nil && r.contextOverflow.Enabled {
+				if _, isOverflow := IsContextOverflow(err); isOverflow && len(messages) > 4 {
+					r.observer.Debug("rlm", "Context overflow on iteration %d, pruning messages and retrying", iteration+1)
+					modelLimit := r.getModelTokenLimit()
+					if modelLimit == 0 {
+						modelLimit = 32768 // Reasonable default
+					}
+					responseTokens := r.getResponseTokenBudget()
+					available := modelLimit - responseTokens - int(float64(modelLimit)*0.15)
+					messages = pruneMessages(messages, available)
+					// Retry this iteration
+					iteration--
+					continue
+				}
+			}
 			r.observer.Error("rlm", "LLM call failed on iteration %d: %v", iteration+1, err)
 			return "", r.stats, err
 		}
@@ -212,6 +245,48 @@ func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} 
 	}
 
 	return env
+}
+
+// pruneMessages removes older middle messages to fit within a token budget.
+// Preserves the first message (system prompt) and the last 2 messages (most recent exchange).
+func pruneMessages(messages []Message, targetTokens int) []Message {
+	if len(messages) <= 3 {
+		return messages
+	}
+
+	// Always keep: system prompt (first), last 2 messages (most recent exchange)
+	system := messages[0]
+	lastN := messages[len(messages)-2:]
+
+	// Start with the preserved messages
+	result := []Message{system}
+	currentTokens := EstimateMessagesTokens(append(result, lastN...))
+
+	if currentTokens >= targetTokens {
+		// Even the minimum set exceeds the budget; return it anyway
+		return append(result, lastN...)
+	}
+
+	// Add middle messages from most recent to oldest until budget is exceeded
+	middle := messages[1 : len(messages)-2]
+	for i := len(middle) - 1; i >= 0; i-- {
+		msgTokens := 4 + EstimateTokens(middle[i].Content)
+		if currentTokens+msgTokens > targetTokens {
+			break
+		}
+		result = append(result, middle[i])
+		currentTokens += msgTokens
+	}
+
+	// Reverse the added middle messages (they were added newest-first)
+	if len(result) > 1 {
+		added := result[1:]
+		for i, j := 0, len(added)-1; i < j; i, j = i+1, j-1 {
+			added[i], added[j] = added[j], added[i]
+		}
+	}
+
+	return append(result, lastN...)
 }
 
 // GetObserver returns the observer for external access to events/traces.

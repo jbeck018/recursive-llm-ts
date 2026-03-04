@@ -46,6 +46,20 @@ func (r *RLM) StructuredCompletion(query string, context string, config *Structu
 	subTasks := decomposeSchema(config.Schema)
 	r.observer.Debug("structured", "Schema decomposed into %d subtasks", len(subTasks))
 
+	// Pre-emptive overflow check: reduce context BEFORE building the prompt.
+	// Structured completion embeds the full context in the user message, so this is
+	// critical to prevent overflow on the first LLM call (following the RLM paper's
+	// principle: "the context window of the root LM is rarely clogged").
+	schemaJSON, _ := json.Marshal(config.Schema)
+	schemaOverhead := EstimateTokens(string(schemaJSON)) + structuredPromptOverhead
+	reducedCtx, wasReduced, reduceErr := r.PreemptiveReduceContext(query, context, schemaOverhead)
+	if reduceErr != nil {
+		r.observer.Error("structured", "Pre-emptive reduction failed: %v (proceeding with original context)", reduceErr)
+	} else if wasReduced {
+		r.observer.Debug("structured", "Pre-emptive reduction applied: %d -> %d chars", len(context), len(reducedCtx))
+		context = reducedCtx
+	}
+
 	// If simple schema or parallel disabled, use direct method
 	if len(subTasks) <= 2 || !config.ParallelExecution {
 		r.observer.Debug("structured", "Using direct completion method")

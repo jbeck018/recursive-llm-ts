@@ -30,6 +30,155 @@ func DefaultContextOverflowConfig() ContextOverflowConfig {
 	}
 }
 
+// ─── Model Token Limits ──────────────────────────────────────────────────────
+
+// modelTokenLimits maps known model name patterns to their maximum context window sizes.
+// Used for pre-emptive overflow detection so we don't need to wait for API errors.
+var modelTokenLimits = map[string]int{
+	// OpenAI
+	"gpt-4o":            128000,
+	"gpt-4o-mini":       128000,
+	"gpt-4-turbo":       128000,
+	"gpt-4":             8192,
+	"gpt-4-32k":         32768,
+	"gpt-3.5-turbo":     16385,
+	"gpt-3.5-turbo-16k": 16385,
+	"o1":                200000,
+	"o1-mini":           128000,
+	"o1-preview":        128000,
+	"o3-mini":           200000,
+	// Anthropic (via LiteLLM/proxy)
+	"claude-3-opus":       200000,
+	"claude-3-sonnet":     200000,
+	"claude-3-haiku":      200000,
+	"claude-3.5-sonnet":   200000,
+	"claude-3.5-haiku":    200000,
+	"claude-sonnet-4":     200000,
+	"claude-opus-4":       200000,
+	// Llama (common vLLM deployments)
+	"llama-3":     8192,
+	"llama-3.1":   128000,
+	"llama-3.2":   128000,
+	"llama-3.3":   128000,
+	// Mistral
+	"mistral-7b":    32768,
+	"mixtral-8x7b":  32768,
+	"mistral-large": 128000,
+	"mistral-small": 128000,
+	// Qwen
+	"qwen-2":   32768,
+	"qwen-2.5": 128000,
+}
+
+// LookupModelTokenLimit returns the known token limit for a model, or 0 if unknown.
+// Matches by prefix so "gpt-4o-mini-2024-07-18" matches "gpt-4o-mini".
+func LookupModelTokenLimit(model string) int {
+	lowerModel := strings.ToLower(model)
+
+	// Try exact match first
+	if limit, ok := modelTokenLimits[lowerModel]; ok {
+		return limit
+	}
+
+	// Try prefix matching (longest prefix wins)
+	bestMatch := ""
+	bestLimit := 0
+	for pattern, limit := range modelTokenLimits {
+		if strings.HasPrefix(lowerModel, pattern) && len(pattern) > len(bestMatch) {
+			bestMatch = pattern
+			bestLimit = limit
+		}
+	}
+
+	return bestLimit
+}
+
+// getModelTokenLimit returns the effective token limit for pre-emptive overflow checks.
+// Priority: config override > model name lookup > 0 (disabled).
+func (r *RLM) getModelTokenLimit() int {
+	if r.contextOverflow != nil && r.contextOverflow.MaxModelTokens > 0 {
+		return r.contextOverflow.MaxModelTokens
+	}
+	return LookupModelTokenLimit(r.model)
+}
+
+// ─── Pre-emptive Overflow Check ──────────────────────────────────────────────
+
+// structuredPromptOverhead is the approximate token overhead for structured completion prompts
+// (instructions, schema constraints, JSON formatting directives).
+const structuredPromptOverhead = 350
+
+// PreemptiveReduceContext checks if the context would overflow the model's token limit
+// and reduces it proactively BEFORE building the prompt. Returns the (possibly reduced)
+// context, or an error if reduction fails.
+//
+// This is called before the first LLM call, unlike post-hoc overflow recovery which
+// only triggers after an API error. Following the RLM paper's principle that
+// "the context window of the root LM is rarely clogged."
+func (r *RLM) PreemptiveReduceContext(query string, context string, extraOverhead int) (string, bool, error) {
+	modelLimit := r.getModelTokenLimit()
+	if modelLimit == 0 {
+		// No known limit; skip pre-emptive check (will rely on post-hoc recovery)
+		return context, false, nil
+	}
+
+	if r.contextOverflow == nil || !r.contextOverflow.Enabled {
+		return context, false, nil
+	}
+
+	// Estimate total token budget needed
+	contextTokens := EstimateTokens(context)
+	queryTokens := EstimateTokens(query)
+	responseTokens := r.getResponseTokenBudget()
+	safetyMargin := r.contextOverflow.SafetyMargin
+	if safetyMargin == 0 {
+		safetyMargin = 0.15
+	}
+
+	totalEstimate := contextTokens + queryTokens + extraOverhead + responseTokens +
+		int(float64(modelLimit)*safetyMargin)
+
+	r.observer.Debug("overflow", "Pre-emptive check: context=%d query=%d overhead=%d response=%d safety=%d total=%d limit=%d",
+		contextTokens, queryTokens, extraOverhead, responseTokens,
+		int(float64(modelLimit)*safetyMargin), totalEstimate, modelLimit)
+
+	if totalEstimate <= modelLimit {
+		return context, false, nil
+	}
+
+	// Context would overflow — reduce it proactively
+	r.observer.Debug("overflow", "Pre-emptive reduction needed: estimated %d tokens > limit %d", totalEstimate, modelLimit)
+
+	reducer := newContextReducer(r, *r.contextOverflow, r.observer)
+	reduced, err := reducer.ReduceForCompletion(query, context, modelLimit)
+	if err != nil {
+		return context, false, fmt.Errorf("pre-emptive context reduction failed: %w", err)
+	}
+
+	r.observer.Debug("overflow", "Pre-emptive reduction: %d -> %d chars", len(context), len(reduced))
+	return reduced, true, nil
+}
+
+// getResponseTokenBudget extracts max_tokens or max_completion_tokens from ExtraParams.
+func (r *RLM) getResponseTokenBudget() int {
+	if r.extraParams == nil {
+		return 0
+	}
+	for _, key := range []string{"max_completion_tokens", "max_tokens"} {
+		if v, ok := r.extraParams[key]; ok {
+			switch n := v.(type) {
+			case float64:
+				return int(n)
+			case int:
+				return n
+			case int64:
+				return int(n)
+			}
+		}
+	}
+	return 0
+}
+
 // ─── Token Estimation ────────────────────────────────────────────────────────
 
 // EstimateTokens provides a fast approximation of token count for a string.
@@ -168,27 +317,9 @@ func newContextReducer(rlm *RLM, config ContextOverflowConfig, obs *Observer) *c
 	return &contextReducer{rlm: rlm, config: config, obs: obs}
 }
 
-// getResponseTokenBudget extracts max_tokens or max_completion_tokens from ExtraParams.
-// This represents how many tokens the API will reserve for the response, which must be
-// subtracted from the model's total capacity when sizing input chunks.
-func (cr *contextReducer) getResponseTokenBudget(modelLimit int) int {
-	if cr.rlm.extraParams == nil {
-		return 0
-	}
-	// Check max_completion_tokens first (newer API parameter), then max_tokens
-	for _, key := range []string{"max_completion_tokens", "max_tokens"} {
-		if v, ok := cr.rlm.extraParams[key]; ok {
-			switch n := v.(type) {
-			case float64:
-				return int(n)
-			case int:
-				return n
-			case int64:
-				return int(n)
-			}
-		}
-	}
-	return 0
+// getResponseTokenBudget delegates to the RLM engine's method.
+func (cr *contextReducer) getResponseTokenBudget() int {
+	return cr.rlm.getResponseTokenBudget()
 }
 
 // makeMapPhaseParams creates ExtraParams suitable for map-phase LLM calls (summarization).
@@ -222,7 +353,7 @@ func (cr *contextReducer) ReduceForCompletion(query string, context string, mode
 	// Calculate safe token budget per chunk
 	// Reserve tokens for: system prompt (~500), query, overhead, safety margin, response budget
 	queryTokens := EstimateTokens(query)
-	responseTokens := cr.getResponseTokenBudget(modelLimit)
+	responseTokens := cr.getResponseTokenBudget()
 	overhead := 500 + queryTokens + int(float64(modelLimit)*cr.config.SafetyMargin) + responseTokens
 	safeTokensPerChunk := modelLimit - overhead
 

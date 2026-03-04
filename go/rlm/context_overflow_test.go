@@ -153,7 +153,7 @@ func TestGetResponseTokenBudget(t *testing.T) {
 	config := DefaultContextOverflowConfig()
 	reducer := newContextReducer(rlm, config, obs)
 
-	budget := reducer.getResponseTokenBudget(32768)
+	budget := reducer.getResponseTokenBudget()
 	if budget != 10000 {
 		t.Errorf("expected response token budget 10000, got %d", budget)
 	}
@@ -169,7 +169,7 @@ func TestGetResponseTokenBudget_MaxCompletionTokens(t *testing.T) {
 	config := DefaultContextOverflowConfig()
 	reducer := newContextReducer(rlm, config, obs)
 
-	budget := reducer.getResponseTokenBudget(32768)
+	budget := reducer.getResponseTokenBudget()
 	if budget != 5000 {
 		t.Errorf("expected response token budget 5000, got %d", budget)
 	}
@@ -185,7 +185,7 @@ func TestGetResponseTokenBudget_NoMaxTokens(t *testing.T) {
 	config := DefaultContextOverflowConfig()
 	reducer := newContextReducer(rlm, config, obs)
 
-	budget := reducer.getResponseTokenBudget(32768)
+	budget := reducer.getResponseTokenBudget()
 	if budget != 0 {
 		t.Errorf("expected response token budget 0, got %d", budget)
 	}
@@ -897,5 +897,375 @@ func TestReduceForCompletion_DispatchesTextRank(t *testing.T) {
 	}
 	if len(result) >= len(context) {
 		t.Errorf("expected reduced context for textrank strategy")
+	}
+}
+
+// ─── Model Token Limits Tests ────────────────────────────────────────────────
+
+func TestLookupModelTokenLimit_ExactMatch(t *testing.T) {
+	tests := []struct {
+		model    string
+		expected int
+	}{
+		{"gpt-4o", 128000},
+		{"gpt-4o-mini", 128000},
+		{"gpt-4", 8192},
+		{"gpt-4-32k", 32768},
+		{"gpt-3.5-turbo", 16385},
+		{"claude-3-opus", 200000},
+		{"claude-sonnet-4", 200000},
+		{"mistral-7b", 32768},
+	}
+
+	for _, tt := range tests {
+		limit := LookupModelTokenLimit(tt.model)
+		if limit != tt.expected {
+			t.Errorf("LookupModelTokenLimit(%q) = %d, expected %d", tt.model, limit, tt.expected)
+		}
+	}
+}
+
+func TestLookupModelTokenLimit_PrefixMatch(t *testing.T) {
+	// Versioned model names should match by prefix
+	tests := []struct {
+		model    string
+		expected int
+	}{
+		{"gpt-4o-mini-2024-07-18", 128000},
+		{"gpt-4o-2024-05-13", 128000},
+		{"claude-3-opus-20240229", 200000},
+		{"mistral-7b-instruct-v0.2", 32768},
+	}
+
+	for _, tt := range tests {
+		limit := LookupModelTokenLimit(tt.model)
+		if limit != tt.expected {
+			t.Errorf("LookupModelTokenLimit(%q) = %d, expected %d", tt.model, limit, tt.expected)
+		}
+	}
+}
+
+func TestLookupModelTokenLimit_Unknown(t *testing.T) {
+	limit := LookupModelTokenLimit("completely-unknown-model-xyz")
+	if limit != 0 {
+		t.Errorf("expected 0 for unknown model, got %d", limit)
+	}
+}
+
+func TestLookupModelTokenLimit_CaseInsensitive(t *testing.T) {
+	limit := LookupModelTokenLimit("GPT-4O-MINI")
+	if limit != 128000 {
+		t.Errorf("expected 128000 for case-insensitive match, got %d", limit)
+	}
+}
+
+func TestGetModelTokenLimit_ConfigOverride(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+		ContextOverflow: &ContextOverflowConfig{
+			Enabled:        true,
+			MaxModelTokens: 16384,
+		},
+	})
+
+	limit := engine.getModelTokenLimit()
+	if limit != 16384 {
+		t.Errorf("expected config override 16384, got %d", limit)
+	}
+}
+
+func TestGetModelTokenLimit_ModelLookup(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+	})
+
+	limit := engine.getModelTokenLimit()
+	if limit != 128000 {
+		t.Errorf("expected model lookup 128000, got %d", limit)
+	}
+}
+
+func TestGetModelTokenLimit_UnknownModel(t *testing.T) {
+	engine := New("custom-local-model", Config{
+		APIKey: "test",
+	})
+
+	limit := engine.getModelTokenLimit()
+	if limit != 0 {
+		t.Errorf("expected 0 for unknown model, got %d", limit)
+	}
+}
+
+// ─── Pre-emptive Overflow Tests ──────────────────────────────────────────────
+
+func TestPreemptiveReduceContext_SmallContext(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+	})
+
+	// Small context should pass through unchanged
+	context := "This is a small context that easily fits."
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("What is this?", context, 500)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if wasReduced {
+		t.Error("expected no reduction for small context")
+	}
+	if reduced != context {
+		t.Error("expected context to be unchanged")
+	}
+}
+
+func TestPreemptiveReduceContext_LargeContext(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+		ContextOverflow: &ContextOverflowConfig{
+			Enabled:        true,
+			MaxModelTokens: 1000, // Very small limit to force overflow
+			Strategy:       "truncate",
+			SafetyMargin:   0.15,
+		},
+	})
+
+	// Create large context that exceeds the 1000 token limit
+	context := strings.Repeat("The revenue for Q4 was $4.2 billion, representing 23% year-over-year growth. ", 100)
+
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("Summarize revenue", context, 300)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !wasReduced {
+		t.Error("expected context to be reduced")
+	}
+	if len(reduced) >= len(context) {
+		t.Errorf("expected reduced context to be shorter: %d >= %d", len(reduced), len(context))
+	}
+}
+
+func TestPreemptiveReduceContext_DisabledOverflow(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+		ContextOverflow: &ContextOverflowConfig{
+			Enabled: false,
+		},
+	})
+
+	context := strings.Repeat("Large content. ", 10000)
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("query", context, 500)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if wasReduced {
+		t.Error("expected no reduction when overflow is disabled")
+	}
+	if reduced != context {
+		t.Error("expected context unchanged when overflow is disabled")
+	}
+}
+
+func TestPreemptiveReduceContext_UnknownModel(t *testing.T) {
+	engine := New("custom-local-model", Config{
+		APIKey: "test",
+	})
+
+	// Unknown model with no config override → no pre-emptive check
+	context := strings.Repeat("Large content. ", 10000)
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("query", context, 500)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if wasReduced {
+		t.Error("expected no reduction for unknown model with no config limit")
+	}
+	if reduced != context {
+		t.Error("expected context unchanged")
+	}
+}
+
+func TestPreemptiveReduceContext_AccountsForResponseBudget(t *testing.T) {
+	// With a high max_tokens, even moderate context should trigger reduction
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+		ContextOverflow: &ContextOverflowConfig{
+			Enabled:        true,
+			MaxModelTokens: 2000,
+			Strategy:       "truncate",
+			SafetyMargin:   0.15,
+		},
+		ExtraParams: map[string]interface{}{
+			"max_tokens": float64(1000), // Large response budget
+		},
+	})
+
+	// Context of ~500 tokens + max_tokens 1000 + overhead = exceeds 2000
+	context := strings.Repeat("Revenue data: the company earned $4.2B in Q4 fiscal year. ", 30)
+
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("Summarize", context, 300)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !wasReduced {
+		t.Error("expected reduction when response budget + context exceeds limit")
+	}
+	if len(reduced) >= len(context) {
+		t.Errorf("expected reduced context: %d >= %d", len(reduced), len(context))
+	}
+}
+
+func TestPreemptiveReduceContext_TFIDFStrategy(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+		ContextOverflow: &ContextOverflowConfig{
+			Enabled:        true,
+			MaxModelTokens: 500,
+			Strategy:       "tfidf",
+			SafetyMargin:   0.15,
+		},
+	})
+
+	context := strings.Repeat("Machine learning models process large datasets effectively. ", 100)
+
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("Tell me about ML", context, 200)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !wasReduced {
+		t.Error("expected reduction with tfidf strategy")
+	}
+	if len(reduced) >= len(context) {
+		t.Errorf("expected shorter context: %d >= %d", len(reduced), len(context))
+	}
+}
+
+func TestPreemptiveReduceContext_TextRankStrategy(t *testing.T) {
+	engine := New("gpt-4o-mini", Config{
+		APIKey: "test",
+		ContextOverflow: &ContextOverflowConfig{
+			Enabled:        true,
+			MaxModelTokens: 500,
+			Strategy:       "textrank",
+			SafetyMargin:   0.15,
+		},
+	})
+
+	context := strings.Repeat("Neural networks are powerful computation models. ", 100)
+
+	reduced, wasReduced, err := engine.PreemptiveReduceContext("Explain neural nets", context, 200)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !wasReduced {
+		t.Error("expected reduction with textrank strategy")
+	}
+	if len(reduced) >= len(context) {
+		t.Errorf("expected shorter context: %d >= %d", len(reduced), len(context))
+	}
+}
+
+func TestGetResponseTokenBudget_RLMMethod(t *testing.T) {
+	engine := &RLM{
+		extraParams: map[string]interface{}{
+			"max_tokens": float64(5000),
+		},
+	}
+	budget := engine.getResponseTokenBudget()
+	if budget != 5000 {
+		t.Errorf("expected 5000, got %d", budget)
+	}
+}
+
+func TestGetResponseTokenBudget_MaxCompletionTokensPreferred(t *testing.T) {
+	engine := &RLM{
+		extraParams: map[string]interface{}{
+			"max_tokens":            float64(5000),
+			"max_completion_tokens": float64(8000),
+		},
+	}
+	budget := engine.getResponseTokenBudget()
+	if budget != 8000 {
+		t.Errorf("expected max_completion_tokens=8000 preferred, got %d", budget)
+	}
+}
+
+func TestGetResponseTokenBudget_NoParams(t *testing.T) {
+	engine := &RLM{
+		extraParams: map[string]interface{}{
+			"temperature": 0.7,
+		},
+	}
+	budget := engine.getResponseTokenBudget()
+	if budget != 0 {
+		t.Errorf("expected 0 when no max_tokens set, got %d", budget)
+	}
+}
+
+// ─── Message Pruning Tests ───────────────────────────────────────────────────
+
+func TestPruneMessages_SmallHistory(t *testing.T) {
+	messages := []Message{
+		{Role: "system", Content: "You are helpful."},
+		{Role: "user", Content: "Hello"},
+		{Role: "assistant", Content: "Hi there!"},
+	}
+
+	result := pruneMessages(messages, 100)
+	if len(result) != 3 {
+		t.Errorf("expected 3 messages (no pruning needed), got %d", len(result))
+	}
+}
+
+func TestPruneMessages_PreservesSystemAndLast(t *testing.T) {
+	messages := []Message{
+		{Role: "system", Content: "System prompt"},
+		{Role: "user", Content: "First question"},
+		{Role: "assistant", Content: "First answer"},
+		{Role: "user", Content: "Second question"},
+		{Role: "assistant", Content: "Second answer"},
+		{Role: "user", Content: strings.Repeat("Third question with lots of context. ", 100)},
+		{Role: "assistant", Content: "Third answer"},
+	}
+
+	result := pruneMessages(messages, 50) // Very tight budget
+
+	// Should always keep system prompt (first) and last 2 messages
+	if len(result) < 3 {
+		t.Errorf("expected at least 3 messages, got %d", len(result))
+	}
+	if result[0].Role != "system" {
+		t.Error("first message should be system prompt")
+	}
+	if result[len(result)-1].Content != "Third answer" {
+		t.Error("last message should be the most recent")
+	}
+	if result[len(result)-2].Role != "user" {
+		t.Error("second-to-last should be the most recent user message")
+	}
+}
+
+func TestPruneMessages_KeepsRecentMiddleMessages(t *testing.T) {
+	messages := []Message{
+		{Role: "system", Content: "Short."},
+		{Role: "user", Content: "Q1"},
+		{Role: "assistant", Content: "A1"},
+		{Role: "user", Content: "Q2"},
+		{Role: "assistant", Content: "A2"},
+		{Role: "user", Content: "Q3"},
+		{Role: "assistant", Content: "A3"},
+	}
+
+	// Budget large enough for all
+	result := pruneMessages(messages, 10000)
+	if len(result) != 7 {
+		t.Errorf("expected all 7 messages with large budget, got %d", len(result))
+	}
+}
+
+// ─── Structured Completion Pre-emptive Integration Tests ─────────────────────
+
+func TestStructuredPromptOverhead_Constant(t *testing.T) {
+	// Verify the constant is reasonable (300-500 tokens for structured prompt instructions)
+	if structuredPromptOverhead < 200 || structuredPromptOverhead > 600 {
+		t.Errorf("structuredPromptOverhead=%d seems out of range (expected 200-600)", structuredPromptOverhead)
 	}
 }
