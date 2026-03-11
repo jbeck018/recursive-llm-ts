@@ -25,7 +25,7 @@ func TestTokenUsage_ParsedFromAPIResponse(t *testing.T) {
 				"total_tokens":      175,
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -62,7 +62,7 @@ func TestTokenUsage_NilWhenAPIDoesNotReturnUsage(t *testing.T) {
 				{"message": map[string]string{"content": "Hello"}},
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -95,7 +95,7 @@ func TestRLMStats_TokenAccumulation(t *testing.T) {
 				"total_tokens":      120 * callCount,
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -144,7 +144,7 @@ func TestRLMStats_TokenAccumulation_MultipleIterations(t *testing.T) {
 				"total_tokens":      250,
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -721,7 +721,7 @@ func TestTokenEfficiency_MapReduceTracksTokens(t *testing.T) {
 				"total_tokens":      530 + callCount*50,
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -780,7 +780,7 @@ func TestTokenEfficiency_StructuredCompletion_TracksTokens(t *testing.T) {
 				"total_tokens":      315,
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
