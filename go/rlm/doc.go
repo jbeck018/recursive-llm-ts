@@ -8,13 +8,13 @@
 //
 // To use this package in your Go project:
 //
-//	go get github.com/jbeck018/recursive-llm-ts/go
+//	go get github.com/howlerops/recursive-llm-ts/go
 //
 // # Basic Usage
 //
 // Create an RLM engine and execute a completion:
 //
-//	import "github.com/jbeck018/recursive-llm-ts/go/rlm"
+//	import "github.com/howlerops/recursive-llm-ts/go/rlm"
 //
 //	config := rlm.Config{
 //	    MaxDepth:      5,

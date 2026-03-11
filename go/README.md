@@ -13,7 +13,7 @@ This is both a standalone Go library and CLI binary that implements the RLM algo
 ### As a Go Library
 
 ```bash
-go get github.com/jbeck018/recursive-llm-ts/go
+go get github.com/howlerops/recursive-llm-ts/go
 ```
 
 ### Usage as Library
@@ -25,7 +25,7 @@ import (
     "fmt"
     "os"
 
-    "github.com/jbeck018/recursive-llm-ts/go/rlm"
+    "github.com/howlerops/recursive-llm-ts/go/rlm"
 )
 
 func main() {

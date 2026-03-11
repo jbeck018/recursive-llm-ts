@@ -196,9 +196,15 @@ func (r *RLM) structuredCompletionDirect(query string, context string, config *S
 		}
 
 		stats.ParsingRetries = attempt
+		stats.TotalTokens = r.stats.TotalTokens
+		stats.PromptTokens = r.stats.PromptTokens
+		stats.CompletionTokens = r.stats.CompletionTokens
 		return parsed, stats, nil
 	}
 
+	stats.TotalTokens = r.stats.TotalTokens
+	stats.PromptTokens = r.stats.PromptTokens
+	stats.CompletionTokens = r.stats.CompletionTokens
 	return nil, stats, fmt.Errorf("failed to get valid structured output after %d attempts: %v", config.MaxRetries, lastErr)
 }
 
@@ -265,6 +271,9 @@ func (r *RLM) structuredCompletionParallel(query string, context string, config 
 				totalStats.Depth = stats.Depth
 			}
 			totalStats.ParsingRetries += stats.ParsingRetries
+			totalStats.TotalTokens += stats.TotalTokens
+			totalStats.PromptTokens += stats.PromptTokens
+			totalStats.CompletionTokens += stats.CompletionTokens
 			statsMutex.Unlock()
 		}(i, task)
 	}

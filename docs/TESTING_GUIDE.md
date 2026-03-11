@@ -212,12 +212,27 @@ These tests directly validate the RLM paper's key claims:
 ✅ **"RLMs one-shot long output tasks"** - Git diff tracking, BibTeX tests  
 ✅ **"RLMs maintain efficiency"** - Low LLM call counts across all tests  
 
+## Token Tracking and Efficiency Tests
+
+In addition to the RLM pattern tests, we have a dedicated test suite proving that context reduction strategies actually use fewer tokens than raw submission. These tests run locally with mock servers (no API key needed).
+
+```bash
+# Run all 22 token tracking and efficiency tests
+cd go && go test ./rlm/... -run "TestToken|TestRLMStats_Token|TestFormatStats|TestEstimate" -v
+
+# Just the efficiency comparison table
+go test ./rlm -run TestTokenEfficiency_AllStrategiesCompared -v
+```
+
+See [Token Tracking and Efficiency Guide](TOKEN_TRACKING_AND_EFFICIENCY.md) for full details, benchmark results, and strategy recommendations by document size.
+
 ## Resources
 
 - **Full Paper**: https://arxiv.org/abs/2512.24601v1
 - **Paper Website**: https://alexzhang13.github.io/blog/2025/rlm/
 - **Official Python Code**: https://github.com/alexzhang13/rlm
 - **Test Documentation**: `RLM_PATTERN_TESTS.md`
+- **Token Tracking Guide**: `TOKEN_TRACKING_AND_EFFICIENCY.md`
 - **Migration Status**: `PYTHON_VS_GO_COMPARISON.md`
 
 ## Questions?

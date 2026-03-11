@@ -57,6 +57,9 @@ export class RLMResultFormatter {
     if (this.stats.parsing_retries) {
       parts.push(`Retries: ${this.stats.parsing_retries}`);
     }
+    if (this.stats.total_tokens) {
+      parts.push(`Tokens: ${this.stats.total_tokens} (prompt: ${this.stats.prompt_tokens ?? 0}, completion: ${this.stats.completion_tokens ?? 0})`);
+    }
     if (this.cached) {
       parts.push('(cached)');
     }
@@ -91,6 +94,11 @@ export class RLMResultFormatter {
     ];
     if (this.stats.parsing_retries) {
       lines.push(`| Parsing Retries | ${this.stats.parsing_retries} |`);
+    }
+    if (this.stats.total_tokens) {
+      lines.push(`| Total Tokens | ${this.stats.total_tokens} |`);
+      lines.push(`| Prompt Tokens | ${this.stats.prompt_tokens ?? 0} |`);
+      lines.push(`| Completion Tokens | ${this.stats.completion_tokens ?? 0} |`);
     }
     lines.push(`| Cached | ${this.cached} |`);
     lines.push(`| Model | ${this.model} |`);

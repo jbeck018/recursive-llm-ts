@@ -74,7 +74,15 @@ func (ma *MetaAgent) OptimizeQuery(query string, context string) (string, error)
 		return query, nil
 	}
 
-	optimized := strings.TrimSpace(result)
+	// Track meta-agent token usage in the parent RLM's stats
+	if result.Usage != nil {
+		ma.rlm.stats.PromptTokens += result.Usage.PromptTokens
+		ma.rlm.stats.CompletionTokens += result.Usage.CompletionTokens
+		ma.rlm.stats.TotalTokens += result.Usage.TotalTokens
+	}
+	ma.rlm.stats.LlmCalls++
+
+	optimized := strings.TrimSpace(result.Content)
 	ma.obs.Debug("meta_agent", "Optimized query: %s", truncateStr(optimized, 200))
 	ma.obs.Event("meta_agent.query_optimized", map[string]string{
 		"original_length":  fmt.Sprintf("%d", len(query)),
@@ -136,7 +144,15 @@ func (ma *MetaAgent) OptimizeForStructured(query string, context string, schema 
 		return query, nil
 	}
 
-	optimized := strings.TrimSpace(result)
+	// Track meta-agent token usage in the parent RLM's stats
+	if result.Usage != nil {
+		ma.rlm.stats.PromptTokens += result.Usage.PromptTokens
+		ma.rlm.stats.CompletionTokens += result.Usage.CompletionTokens
+		ma.rlm.stats.TotalTokens += result.Usage.TotalTokens
+	}
+	ma.rlm.stats.LlmCalls++
+
+	optimized := strings.TrimSpace(result.Content)
 	ma.obs.Debug("meta_agent", "Optimized structured query: %s", truncateStr(optimized, 200))
 	ma.obs.Event("meta_agent.structured_query_optimized", map[string]string{
 		"original_length":  fmt.Sprintf("%d", len(query)),

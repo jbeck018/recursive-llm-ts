@@ -3,6 +3,9 @@ export interface RLMStats {
   iterations: number;
   depth: number;
   parsing_retries?: number;
+  total_tokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
 }
 
 export interface RLMResult {
