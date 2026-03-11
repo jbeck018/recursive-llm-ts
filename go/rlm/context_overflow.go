@@ -431,8 +431,13 @@ func (cr *contextReducer) reduceByMapReduce(query string, chunks []string, model
 			}
 
 			cr.rlm.stats.LlmCalls++
-			summaries[idx] = result
-			cr.obs.Debug("overflow", "Chunk %d/%d summarized: %d -> %d chars", idx+1, len(chunks), len(chunkText), len(result))
+			if result.Usage != nil {
+				cr.rlm.stats.PromptTokens += result.Usage.PromptTokens
+				cr.rlm.stats.CompletionTokens += result.Usage.CompletionTokens
+				cr.rlm.stats.TotalTokens += result.Usage.TotalTokens
+			}
+			summaries[idx] = result.Content
+			cr.obs.Debug("overflow", "Chunk %d/%d summarized: %d -> %d chars", idx+1, len(chunks), len(chunkText), len(result.Content))
 		}(i, chunk)
 	}
 
@@ -536,8 +541,13 @@ func (cr *contextReducer) reduceByChunkedExtraction(query string, chunks []strin
 			}
 
 			cr.rlm.stats.LlmCalls++
-			if strings.TrimSpace(result) != "NO_RELEVANT_CONTENT" {
-				results[idx] = result
+			if result.Usage != nil {
+				cr.rlm.stats.PromptTokens += result.Usage.PromptTokens
+				cr.rlm.stats.CompletionTokens += result.Usage.CompletionTokens
+				cr.rlm.stats.TotalTokens += result.Usage.TotalTokens
+			}
+			if strings.TrimSpace(result.Content) != "NO_RELEVANT_CONTENT" {
+				results[idx] = result.Content
 			}
 		}(i, chunk)
 	}
@@ -606,7 +616,7 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 		{Role: "user", Content: initialPrompt},
 	}
 
-	currentAnswer, err := CallChatCompletion(ChatRequest{
+	initialResult, err := CallChatCompletion(ChatRequest{
 		Model:       cr.rlm.model,
 		Messages:    messages,
 		APIBase:     cr.rlm.apiBase,
@@ -618,6 +628,12 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 		return "", fmt.Errorf("refine initial chunk: %w", err)
 	}
 	cr.rlm.stats.LlmCalls++
+	if initialResult.Usage != nil {
+		cr.rlm.stats.PromptTokens += initialResult.Usage.PromptTokens
+		cr.rlm.stats.CompletionTokens += initialResult.Usage.CompletionTokens
+		cr.rlm.stats.TotalTokens += initialResult.Usage.TotalTokens
+	}
+	currentAnswer := initialResult.Content
 	cr.obs.Debug("overflow", "Refine: initial answer from chunk 1/%d (%d chars)", len(chunks), len(currentAnswer))
 
 	// Phase 2: Refine the answer with each subsequent chunk
@@ -638,7 +654,7 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 			{Role: "user", Content: refinePrompt},
 		}
 
-		refined, err := CallChatCompletion(ChatRequest{
+		refineResult, err := CallChatCompletion(ChatRequest{
 			Model:       cr.rlm.model,
 			Messages:    messages,
 			APIBase:     cr.rlm.apiBase,
@@ -652,7 +668,12 @@ func (cr *contextReducer) reduceByRefine(query string, chunks []string, modelLim
 			continue
 		}
 		cr.rlm.stats.LlmCalls++
-		currentAnswer = refined
+		if refineResult.Usage != nil {
+			cr.rlm.stats.PromptTokens += refineResult.Usage.PromptTokens
+			cr.rlm.stats.CompletionTokens += refineResult.Usage.CompletionTokens
+			cr.rlm.stats.TotalTokens += refineResult.Usage.TotalTokens
+		}
+		currentAnswer = refineResult.Content
 		cr.obs.Debug("overflow", "Refine: incorporated chunk %d/%d (%d chars)", i+1, len(chunks), len(currentAnswer))
 	}
 

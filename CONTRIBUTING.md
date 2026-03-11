@@ -14,7 +14,7 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ```bash
 # Clone the repository
-git clone https://github.com/jbeck018/recursive-llm-ts.git
+git clone https://github.com/howlerops/recursive-llm-ts.git
 cd recursive-llm-ts
 
 # Install dependencies (also builds Go binary via postinstall)
@@ -185,5 +185,5 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a detailed technical overvi
 
 ## Questions?
 
-- Open an issue at https://github.com/jbeck018/recursive-llm-ts/issues
+- Open an issue at https://github.com/howlerops/recursive-llm-ts/issues
 - Check existing issues and discussions before creating new ones

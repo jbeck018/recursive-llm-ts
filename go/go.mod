@@ -1,4 +1,4 @@
-module github.com/jbeck018/recursive-llm-ts/go
+module github.com/howlerops/recursive-llm-ts/go
 
 go 1.25.0
 

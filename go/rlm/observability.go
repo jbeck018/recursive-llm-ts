@@ -445,6 +445,12 @@ func FormatStatsWithObservability(stats RLMStats, obs *Observer) map[string]inte
 		result["parsing_retries"] = stats.ParsingRetries
 	}
 
+	if stats.TotalTokens > 0 {
+		result["total_tokens"] = stats.TotalTokens
+		result["prompt_tokens"] = stats.PromptTokens
+		result["completion_tokens"] = stats.CompletionTokens
+	}
+
 	if obs != nil && obs.config.Debug {
 		events := obs.GetEvents()
 		if len(events) > 0 {

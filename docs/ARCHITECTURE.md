@@ -146,6 +146,18 @@ RLM engine attempts LLM call
   → Retry with reduced context (up to max_reduction_attempts)
 ```
 
+### Token Tracking Flow
+```
+CallChatCompletion() parses API response "usage" field
+  → Returns ChatCompletionResult { Content, Usage *TokenUsage }
+  → RLM.callLLM() accumulates into r.stats.{TotalTokens, PromptTokens, CompletionTokens}
+  → Observer.LLMCall() records actual token count (not hardcoded 0)
+  → All paths accumulate: completion, structured, meta-agent, overflow reduction
+  → Stats returned via JSON IPC → TypeScript RLMStats.total_tokens
+```
+
+See [Token Tracking and Efficiency Guide](TOKEN_TRACKING_AND_EFFICIENCY.md) for benchmarks, test details, and strategy recommendations.
+
 ## Go Binary Architecture
 
 ### Key Components
@@ -155,9 +167,11 @@ RLM engine attempts LLM call
 - **`meta_agent.go`** -- Query optimization heuristics
 - **`observability.go`** -- OTEL tracing, Langfuse integration, debug logging
 - **`repl.go`** -- JavaScript execution using goja engine
-- **`context_overflow.go`** -- Context overflow detection, error classification, 6 reduction strategies
+- **`context_overflow.go`** -- Context overflow detection, error classification, 6 reduction strategies, token estimation
+- **`openai.go`** -- OpenAI-compatible API client, `ChatCompletionResult` with `TokenUsage` parsing
 - **`tfidf.go`** -- TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, IDF scoring
 - **`textrank.go`** -- TextRank graph-based ranking: cosine similarity graph, PageRank iteration
+- **`token_tracking_test.go`** -- 22 tests proving token tracking and context reduction efficiency
 
 ### Binary Resolution Order
 1. `RLMConfig.go_binary_path`

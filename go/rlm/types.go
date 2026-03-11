@@ -6,10 +6,13 @@ import (
 )
 
 type RLMStats struct {
-	LlmCalls       int `json:"llm_calls"`
-	Iterations     int `json:"iterations"`
-	Depth          int `json:"depth"`
-	ParsingRetries int `json:"parsing_retries,omitempty"`
+	LlmCalls         int `json:"llm_calls"`
+	Iterations       int `json:"iterations"`
+	Depth            int `json:"depth"`
+	ParsingRetries   int `json:"parsing_retries,omitempty"`
+	TotalTokens      int `json:"total_tokens,omitempty"`
+	PromptTokens     int `json:"prompt_tokens,omitempty"`
+	CompletionTokens int `json:"completion_tokens,omitempty"`
 }
 
 type JSONSchema struct {

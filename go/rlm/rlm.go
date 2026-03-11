@@ -198,14 +198,22 @@ func (r *RLM) callLLM(messages []Message) (string, error) {
 	result, err := CallChatCompletion(request)
 	duration := time.Since(start)
 
-	r.observer.LLMCall(defaultModel, len(messages), 0, duration, err)
+	tokensUsed := 0
+	if result.Usage != nil {
+		r.stats.PromptTokens += result.Usage.PromptTokens
+		r.stats.CompletionTokens += result.Usage.CompletionTokens
+		r.stats.TotalTokens += result.Usage.TotalTokens
+		tokensUsed = result.Usage.TotalTokens
+	}
+
+	r.observer.LLMCall(defaultModel, len(messages), tokensUsed, duration, err)
 
 	if err != nil {
 		return "", err
 	}
 
-	r.observer.Debug("llm", "Response received (%d chars) in %s", len(result), duration)
-	return result, nil
+	r.observer.Debug("llm", "Response received (%d chars, %d tokens) in %s", len(result.Content), tokensUsed, duration)
+	return result.Content, nil
 }
 
 func (r *RLM) buildREPLEnv(query string, context string) map[string]interface{} {

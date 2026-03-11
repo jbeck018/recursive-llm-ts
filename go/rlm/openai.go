@@ -34,6 +34,20 @@ type chatResponse struct {
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
+	Usage *TokenUsage `json:"usage,omitempty"`
+}
+
+// TokenUsage represents token consumption from an LLM API response.
+type TokenUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
+// ChatCompletionResult holds the content and token usage from an LLM call.
+type ChatCompletionResult struct {
+	Content string
+	Usage   *TokenUsage
 }
 
 var (
@@ -48,7 +62,7 @@ var (
 	}
 )
 
-func CallChatCompletion(request ChatRequest) (string, error) {
+func CallChatCompletion(request ChatRequest) (ChatCompletionResult, error) {
 	endpoint := buildEndpoint(request.APIBase)
 	payload := map[string]interface{}{
 		"model":    request.Model,
@@ -61,7 +75,7 @@ func CallChatCompletion(request ChatRequest) (string, error) {
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", err
+		return ChatCompletionResult{}, err
 	}
 
 	// Use shared client with connection pooling
@@ -76,7 +90,7 @@ func CallChatCompletion(request ChatRequest) (string, error) {
 
 	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return ChatCompletionResult{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if request.APIKey != "" {
@@ -85,7 +99,7 @@ func CallChatCompletion(request ChatRequest) (string, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return ChatCompletionResult{}, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
@@ -93,27 +107,30 @@ func CallChatCompletion(request ChatRequest) (string, error) {
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return ChatCompletionResult{}, err
 	}
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		return "", NewAPIError(resp.StatusCode, strings.TrimSpace(string(responseBody)))
+		return ChatCompletionResult{}, NewAPIError(resp.StatusCode, strings.TrimSpace(string(responseBody)))
 	}
 
 	var parsed chatResponse
 	if err := json.Unmarshal(responseBody, &parsed); err != nil {
-		return "", err
+		return ChatCompletionResult{}, err
 	}
 
 	if parsed.Error != nil && parsed.Error.Message != "" {
-		return "", errors.New(parsed.Error.Message)
+		return ChatCompletionResult{}, errors.New(parsed.Error.Message)
 	}
 
 	if len(parsed.Choices) == 0 {
-		return "", errors.New("no choices returned by LLM")
+		return ChatCompletionResult{}, errors.New("no choices returned by LLM")
 	}
 
-	return parsed.Choices[0].Message.Content, nil
+	return ChatCompletionResult{
+		Content: parsed.Choices[0].Message.Content,
+		Usage:   parsed.Usage,
+	}, nil
 }
 
 func buildEndpoint(apiBase string) string {

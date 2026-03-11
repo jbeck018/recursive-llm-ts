@@ -35,6 +35,7 @@ go test ./rlm -run TestSchema -v        # Schema validation tests
 go test ./rlm -run TestObserver -v      # Observability tests
 go test ./rlm -run TestMetaAgent -v     # Meta-agent tests
 go test ./rlm -run TestExtract -v       # Balanced JSON extraction tests
+go test ./rlm -run "TestToken|TestRLMStats_Token|TestFormatStats|TestEstimate" -v  # Token tracking & efficiency tests
 go test ./rlm/... -cover                # With coverage
 go test ./rlm/... -bench=. -benchmem    # Benchmarks
 
@@ -92,6 +93,8 @@ TypeScript (parses result, exposes trace events)
 - `go/rlm/context_overflow.go` - Context overflow detection, 6 reduction strategies (mapreduce, truncate, chunked, tfidf, textrank, refine)
 - `go/rlm/tfidf.go` - TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, scoring
 - `go/rlm/textrank.go` - TextRank graph-based ranking: cosine similarity, PageRank iteration
+- `go/rlm/openai.go` - OpenAI-compatible API client, ChatCompletionResult with TokenUsage parsing
+- `go/rlm/token_tracking_test.go` - 22 tests for token tracking and context reduction efficiency
 
 ### Binary Resolution
 
@@ -169,7 +172,7 @@ When observability is configured:
 The Go code is a public package importable by other Go projects:
 
 ```go
-import "github.com/jbeck018/recursive-llm-ts/go/rlm"
+import "github.com/howlerops/recursive-llm-ts/go/rlm"
 
 engine := rlm.New("gpt-4o-mini", rlm.Config{
     APIKey: "...",

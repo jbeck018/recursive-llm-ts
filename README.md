@@ -1120,7 +1120,7 @@ The Go implementation can be used as a standalone library in Go projects.
 ### Installation
 
 ```bash
-go get github.com/jbeck018/recursive-llm-ts/go
+go get github.com/howlerops/recursive-llm-ts/go
 ```
 
 ### Usage
@@ -1132,7 +1132,7 @@ import (
     "fmt"
     "os"
 
-    "github.com/jbeck018/recursive-llm-ts/go/rlm"
+    "github.com/howlerops/recursive-llm-ts/go/rlm"
 )
 
 func main() {
