@@ -34,3 +34,5 @@ test-output.txt
 .claude/
 .mcp.json
 .claude/memory.db
+go/rlm.test
+slate.json
