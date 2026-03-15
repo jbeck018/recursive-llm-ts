@@ -36,6 +36,11 @@ go test ./rlm -run TestObserver -v      # Observability tests
 go test ./rlm -run TestMetaAgent -v     # Meta-agent tests
 go test ./rlm -run TestExtract -v       # Balanced JSON extraction tests
 go test ./rlm -run "TestToken|TestRLMStats_Token|TestFormatStats|TestEstimate" -v  # Token tracking & efficiency tests
+go test ./rlm -run "TestTiktoken|TestHeuristic|TestCached|TestSetDefault|TestResetDefault" -v  # Tokenizer tests (BPE, heuristic, caching)
+go test ./rlm -run "TestMemoryBackend|TestSQLiteBackend|TestStoreBackend" -v  # Store backend tests (memory + SQLite)
+go test ./rlm -run "TestEpisodeManager|TestBuildEpisode" -v  # Episodic memory tests
+go test ./rlm -run "TestContextSavings_" -v  # Context savings benchmarks (reproducible, no LLM calls)
+go test ./rlm -run "TestLCM|TestDelegation|TestExpand|TestAgenticMap|TestIsTotalDelegation" -v  # LCM tests (store, DAG, delegation, expand restriction)
 go test ./rlm/... -cover                # With coverage
 go test ./rlm/... -bench=. -benchmem    # Benchmarks
 
@@ -74,7 +79,7 @@ TypeScript (parses result, exposes trace events)
 
 **TypeScript:**
 - `src/rlm.ts` - Main RLM class, Zod->JSON Schema conversion, trace event access, file-based completions
-- `src/bridge-interface.ts` - Config types (RLMConfig, MetaAgentConfig, ObservabilityConfig, ContextOverflowConfig, TraceEvent, FileStorageConfig)
+- `src/bridge-interface.ts` - Config types (RLMConfig, MetaAgentConfig, ObservabilityConfig, ContextOverflowConfig, LCMConfig, LLMMapConfig, AgenticMapConfig, DelegationRequest, TraceEvent, FileStorageConfig)
 - `src/errors.ts` - Error hierarchy including RLMContextOverflowError, classifyError()
 - `src/file-storage.ts` - File storage providers (LocalFileStorage, S3FileStorage), FileContextBuilder, S3StorageError
 - `src/go-bridge.ts` - Spawns Go binary, handles stdin/stdout JSON IPC
@@ -94,8 +99,25 @@ TypeScript (parses result, exposes trace events)
 - `go/rlm/tfidf.go` - TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, scoring
 - `go/rlm/textrank.go` - TextRank graph-based ranking: cosine similarity, PageRank iteration
 - `go/rlm/openai.go` - OpenAI-compatible API client, ChatCompletionResult with TokenUsage parsing
+- `go/rlm/tokenizer.go` - BPE tokenizer via tiktoken-go, model-specific encoding selection, cached counting, heuristic fallback
+- `go/rlm/tokenizer_test.go` - Tokenizer tests (BPE accuracy, encoding selection, CJK, caching, global default)
 - `go/rlm/token_tracking_test.go` - 22 tests for token tracking and context reduction efficiency
-
+- `go/rlm/lcm_store.go` - LCM Immutable Store and Hierarchical Summary DAG, grep/expand/describe tools
+- `go/rlm/lcm_summarizer.go` - Five-Level Summarization Escalation (normal → aggressive → TF-IDF → TextRank → deterministic)
+- `go/rlm/lcm_context_loop.go` - LCM Context Control Loop with soft/hard token thresholds
+- `go/rlm/lcm_map.go` - LLM-Map operator: parallel batch processing with schema validation
+- `go/rlm/lcm_agentic_map.go` - Agentic-Map operator: full sub-agent sessions per item
+- `go/rlm/lcm_delegation.go` - Infinite delegation guard with scope-reduction invariant
+- `go/rlm/lcm_files.go` - Large file handling with type-aware exploration summaries
+- `go/rlm/lcm_episodes.go` - Episodic memory layer: episode lifecycle, auto-rotation, compaction, budget-based context retrieval
+- `go/rlm/lcm_test.go` - Comprehensive LCM tests (store, DAG, summarizer, control loop, delegation, expand restriction)
+- `go/rlm/lcm_episodes_test.go` - Episodic memory tests (episode rotation, compaction, parent chaining, context budget)
+- `go/rlm/json_extraction.go` - Shared JSON extraction: balanced-brace parsing, markdown stripping (used by structured.go + lcm_map.go)
+- `go/rlm/compression.go` - Shared text truncation: "keep start + end" strategy (used by context_overflow.go + lcm_summarizer.go)
+- `go/rlm/store_backend.go` - StoreBackend interface and MemoryBackend implementation for LCM persistence abstraction
+- `go/rlm/store_sqlite.go` - SQLiteBackend: pure-Go SQLite persistence with FTS5 full-text search, WAL mode, transactional writes
+- `go/rlm/store_backend_test.go` - Store backend tests (MemoryBackend + SQLiteBackend with :memory:)
+- `go/rlm/context_savings_test.go` - Reproducible context savings benchmarks (tokenizer accuracy, 5-level escalation, episodic memory, strategy comparison, combined pipeline)
 ### Binary Resolution
 
 The Go bridge looks for the binary in this order:
@@ -167,6 +189,188 @@ When observability is configured:
 5. OTEL spans are exported to configured endpoint
 6. Debug mode logs all operations to stderr/stdout/file
 
+### LCM (Lossless Context Management) Architecture
+
+LCM is an optional, opt-in context management layer inspired by the [LCM paper](https://papers.voltropy.com/LCM) (Voltropy, 2026). It replaces the legacy message pruning with a deterministic, DAG-based architecture that provides lossless retrievability of all prior context.
+
+**Enable via config:**
+```go
+engine := rlm.New("gpt-4o", rlm.Config{
+    LCM: &rlm.LCMConfig{Enabled: true},
+})
+```
+
+Or in TypeScript:
+```typescript
+const rlm = RLM.builder('gpt-4o').build();
+// Pass lcm config through RLMConfig
+```
+
+#### Dual-State Memory Architecture
+
+```
+Immutable Store (source of truth)
+  │  Every message persisted verbatim, never modified
+  │
+  ├── Messages: user, assistant, tool, system
+  │     └── Each has: ID, role, content, tokens, timestamp, file_ids
+  │
+  └── Summary DAG (derived, not source of truth)
+        ├── Leaf Summaries: direct summary of message spans
+        └── Condensed Summaries: higher-order summary of other summaries
+              └── Provenance: parent/child pointers, file ID propagation
+
+Active Context (sent to LLM)
+  │  Assembled from recent messages + summary node pointers
+  │  Summary nodes annotated with IDs for deterministic retrievability
+  └── BuildMessages() → []Message for LLM calls
+```
+
+#### Context Control Loop (Soft/Hard Thresholds)
+
+```
+                    ┌─────────────────────────────────────┐
+ tokens < τ_soft    │  Zero-cost continuity: no overhead  │
+                    └─────────────────────────────────────┘
+                    ┌─────────────────────────────────────┐
+ τ_soft ≤ t < τ_hard│  Async compaction between turns     │
+                    └─────────────────────────────────────┘
+                    ┌─────────────────────────────────────┐
+ tokens ≥ τ_hard    │  Blocking compaction before LLM call│
+                    └─────────────────────────────────────┘
+```
+
+Defaults: τ_soft = 70% of model limit, τ_hard = 90% of model limit.
+
+#### Five-Level Summarization Escalation
+
+Guaranteed convergence — Level 5 is deterministic (no LLM):
+1. **Level 1 (Normal):** LLM summarize with detail preservation, target T tokens
+2. **Level 2 (Aggressive):** LLM summarize as bullet points, target T/2 tokens
+3. **Level 3 (TF-IDF):** Extractive compression via sentence scoring, no LLM
+4. **Level 4 (TextRank):** Graph-based PageRank sentence ranking, no LLM
+5. **Level 5 (Deterministic):** `TruncateText()` — keep 2/3 start + 1/3 end, no LLM
+
+#### Operator-Level Recursion
+
+**LLM-Map** (`lcm_map.go`): Single tool call → engine manages parallel LLM calls
+- JSONL input/output, schema validation per item, retry with feedback
+- Worker pool (default 16 concurrent), database-backed status tracking
+- Context isolation: inputs/outputs on disk, not in LLM context
+
+**Agentic-Map** (`lcm_agentic_map.go`): Full sub-agent RLM sessions per item
+- Each item gets its own RLM instance with tool access
+- read_only flag, output validation, configurable depth/iterations
+- Lower default concurrency (8) due to heavier per-item cost
+
+#### Infinite Delegation Guard
+
+When a sub-agent (depth > 0) spawns a further sub-agent, it must declare:
+- `delegated_scope`: the specific slice of work being handed off
+- `kept_work`: the work the caller retains for itself
+
+If `kept_work` is trivial (e.g., "none", "waiting", "collect results"), the call is rejected. This forces each delegation level to represent a strict reduction in responsibility.
+
+**Exemptions:** root agent (depth 0), read-only agents, parallel decomposition (sibling tasks).
+
+#### LCM Tool Interfaces
+
+- `Grep(pattern, maxResults)` — regex search across immutable store, results grouped by covering summary
+- `ExpandSummary(id)` — reverse compaction, returns original messages (internal use)
+- `ExpandSummaryRestricted(id, depth)` — same but enforces sub-agent-only policy (depth must be > 0)
+- `Describe(id)` — metadata for any LCM identifier (message or summary)
+
+#### Episodic Memory Layer
+
+Episodes group related messages into coherent interaction units for compression and retrieval:
+- EpisodeManager tracks episode lifecycle: active → compacted → archived
+- Auto-rotation when episodes exceed token/message limits (configurable)
+- Parent chaining creates episode chains for conversation continuity
+- Budget-based retrieval: GetEpisodesForContext selects episodes fitting token budget
+- Active episode always included in context; compacted episodes use summary tokens
+
+#### Persistent Storage Backend
+
+StoreBackend interface abstracts LCM persistence with two implementations:
+- **MemoryBackend:** Default in-memory storage, zero external dependencies
+- **SQLiteBackend:** Pure-Go SQLite (modernc.org/sqlite, no CGO) with:
+  - WAL mode for concurrent reads during writes
+  - FTS5 virtual tables for full-text message search
+  - Transactional writes for crash recovery
+  - Indexed lookups by ID, role, timestamp
+
+#### Large File Handling
+
+Files above token threshold (default 25k) are stored externally with exploration summaries:
+- **JSON/JSONL:** Schema and shape extraction (keys, types, row counts)
+- **CSV/TSV:** Column names, row counts, sample rows
+- **Code:** Function/class/struct definitions, import analysis
+- **Text:** LLM-generated summary (falls back to deterministic on failure)
+
+File IDs propagate through the summary DAG during compaction.
+
+#### Shared Utilities
+
+#### Context Savings Benchmarks (Reproducible)
+
+All benchmarks use deterministic content and the heuristic tokenizer for reproducibility.
+Run with: `go test ./rlm/ -run "TestContextSavings_" -v`
+
+**Tokenizer Accuracy** (BPE vs heuristic ~3.5 chars/token):
+
+| Content Type | Chars | Heuristic Tokens | BPE Tokens | Difference |
+|-------------|-------|-----------------|------------|------------|
+| English Prose | 4,004 | 1,144 | 546 | +109.5% over-estimate |
+| Go Code | 433 | 124 | 110 | +12.7% over-estimate |
+| JSON | 411 | 118 | 143 | -17.5% under-estimate |
+| CJK Text | 79 | 65 | 51 | +27.5% over-estimate |
+
+**Five-Level Summarization (non-LLM levels, 5K→2K token target):**
+
+| Level | Strategy | Output Tokens | Reduction | Preserves Sentences |
+|-------|----------|--------------|-----------|-------------------|
+| 3 | TF-IDF | 1,989 | 59.7% | ✅ Yes |
+| 4 | TextRank | 1,972 | 60.0% | ✅ Yes |
+| 5 | Truncate | 1,723 | 65.1% | ❌ No |
+
+**Episodic Memory Budget Selection (50 messages → 10 episodes, compacted):**
+
+| Token Budget | Episodes Selected | Context Tokens | Raw Tokens | Savings |
+|-------------|------------------|---------------|------------|---------|
+| 200 | 1 | 550 | 5,500 | 90.0% |
+| 500 | 1 | 550 | 5,500 | 90.0% |
+| 1,000 | 10 | 991 | 5,500 | 82.0% |
+| 2,000 | 10 | 991 | 5,500 | 82.0% |
+
+**All Strategies Comparison (35K→16K token target):**
+
+| Strategy | Output Tokens | Reduction | Preserves Sentences |
+|----------|--------------|-----------|-------------------|
+| TF-IDF | 15,939 | 53.8% | ✅ Yes |
+| TextRank | 15,850 | 54.0% | ✅ Yes |
+| Truncate | 13,723 | 60.2% | ❌ No |
+
+**Combined Pipeline (100 messages, episodic grouping + TF-IDF compaction + budget selection):**
+
+| Stage | Tokens | Savings vs Raw |
+|-------|--------|---------------|
+| Raw messages | 50,491 | — |
+| After episodic grouping | 50,491 | 0% |
+| After TF-IDF compaction | 7,669 | 84.8% |
+| After budget selection (8K) | 7,669 | 84.8% |
+
+#### Accurate Token Management
+Token counting uses model-specific BPE tokenization via tiktoken-go:
+- SetDefaultTokenizer(model) — called during RLM.New(), selects encoding (o200k_base for GPT-4o, cl100k_base for GPT-4/Claude)
+- CachedTokenizer wraps BPE with xxhash-keyed sync.Map cache (10K entries)
+- HeuristicTokenizer provides ~3.5 chars/token fallback when encoding unavailable
+- EstimateTokens() delegates to the global tokenizer, used throughout the codebase
+
+RLM and LCM share common infrastructure to avoid duplication:
+- `json_extraction.go` — `ExtractFirstJSON()`, `ExtractAllBalancedJSON()`, `ExtractBalancedBraces()`, `StripMarkdownCodeBlock()`
+- `compression.go` — `TruncateText()` with configurable start/end fractions and marker text
+- `tokenizer.go` — Tokenizer interface, TiktokenTokenizer (BPE), HeuristicTokenizer (fallback), CachedTokenizer (xxhash + sync.Map)
+
 ## Go Module
 
 The Go code is a public package importable by other Go projects:
@@ -174,12 +378,51 @@ The Go code is a public package importable by other Go projects:
 ```go
 import "github.com/howlerops/recursive-llm-ts/go/rlm"
 
+// Standard RLM completion
 engine := rlm.New("gpt-4o-mini", rlm.Config{
     APIKey: "...",
     MetaAgent: &rlm.MetaAgentConfig{Enabled: true},
     Observability: &rlm.ObservabilityConfig{Debug: true},
 })
 result, stats, err := engine.Completion(query, context)
+
+// With LCM enabled (deterministic context management)
+lcmEngine := rlm.New("gpt-4o", rlm.Config{
+    APIKey: "...",
+    LCM: &rlm.LCMConfig{
+        Enabled:        true,
+        SoftThreshold:  90000,   // 70% of 128k (default)
+        HardThreshold:  115000,  // 90% of 128k (default)
+    },
+})
+result, stats, err = lcmEngine.Completion(query, context)
+
+// LLM-Map: parallel batch processing
+mapResult, err := engine.LLMMap(rlm.LLMMapConfig{
+    InputPath:  "data/items.jsonl",
+    OutputPath: "data/results.jsonl",
+    Prompt:     "Classify this item: {{item}}",
+    OutputSchema: &rlm.JSONSchema{Type: "object", Properties: map[string]*rlm.JSONSchema{
+        "category": {Type: "string"},
+    }},
+    Concurrency: 16,
+})
+
+// Agentic-Map: full sub-agent sessions per item
+agenticResult, err := engine.AgenticMap(rlm.AgenticMapConfig{
+    InputPath:  "data/repos.jsonl",
+    OutputPath: "data/analyses.jsonl",
+    Prompt:     "Analyze this repository: {{item}}",
+    Concurrency: 4,
+    ReadOnly:    true,
+})
+
+// Task delegation with recursion guard
+result, stats, err = engine.DelegateTask(rlm.DelegationRequest{
+    Prompt:         "Parse the config files",
+    DelegatedScope: "Parse config/ directory files",
+    KeptWork:       "Validate and apply extracted settings",
+})
 ```
 
 ## Environment

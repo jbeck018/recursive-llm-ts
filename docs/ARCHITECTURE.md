@@ -172,6 +172,36 @@ See [Token Tracking and Efficiency Guide](TOKEN_TRACKING_AND_EFFICIENCY.md) for 
 - **`tfidf.go`** -- TF-IDF extractive compression: sentence splitting, tokenization, stop-word filtering, IDF scoring
 - **`textrank.go`** -- TextRank graph-based ranking: cosine similarity graph, PageRank iteration
 - **`token_tracking_test.go`** -- 22 tests proving token tracking and context reduction efficiency
+- **`tokenizer.go`** -- BPE tokenizer (tiktoken-go), model-specific encoding selection, cached counting, heuristic fallback
+- **`lcm_store.go`** -- LCM Immutable Store and Hierarchical Summary DAG
+- **`lcm_summarizer.go`** -- Five-Level Summarization Escalation (LLM normal → LLM aggressive → TF-IDF → TextRank → deterministic)
+- **`lcm_context_loop.go`** -- Context Control Loop with soft/hard token thresholds
+- **`lcm_episodes.go`** -- Episodic memory: episode lifecycle, auto-rotation, compaction, budget-based retrieval
+- **`store_backend.go`** -- StoreBackend interface with MemoryBackend and SQLiteBackend implementations
+
+### LCM (Lossless Context Management) Architecture
+
+The Go binary includes an optional LCM layer for deterministic context management:
+
+```
+Immutable Store → Summary DAG → Active Context → LLM
+     ↑                ↑              ↑
+  Messages      5-Level Escalation  Episode Manager
+  (never deleted)   (TF-IDF/TextRank   (auto-rotation,
+                     before truncate)    budget selection)
+```
+
+Key components:
+- **Immutable Store**: Every message persisted verbatim, never modified
+- **Summary DAG**: Hierarchical summaries with provenance tracking
+- **5-Level Escalation**: LLM normal → LLM aggressive → TF-IDF → TextRank → deterministic
+- **Episodic Memory**: Groups messages into episodes for coherent compression
+- **Persistent Storage**: MemoryBackend (default) or SQLiteBackend (FTS5, WAL, no CGO)
+
+Context savings benchmark (reproducible, no LLM calls):
+- TF-IDF/TextRank: 54-60% reduction while preserving original sentences
+- Episodic memory + compaction: 82-90% savings on 50-message conversations
+- Combined pipeline: 84.8% savings on 100-message sessions
 
 ### Binary Resolution Order
 1. `RLMConfig.go_binary_path`

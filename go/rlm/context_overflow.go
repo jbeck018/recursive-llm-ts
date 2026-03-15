@@ -48,18 +48,18 @@ var modelTokenLimits = map[string]int{
 	"o1-preview":        128000,
 	"o3-mini":           200000,
 	// Anthropic (via LiteLLM/proxy)
-	"claude-3-opus":       200000,
-	"claude-3-sonnet":     200000,
-	"claude-3-haiku":      200000,
-	"claude-3.5-sonnet":   200000,
-	"claude-3.5-haiku":    200000,
-	"claude-sonnet-4":     200000,
-	"claude-opus-4":       200000,
+	"claude-3-opus":     200000,
+	"claude-3-sonnet":   200000,
+	"claude-3-haiku":    200000,
+	"claude-3.5-sonnet": 200000,
+	"claude-3.5-haiku":  200000,
+	"claude-sonnet-4":   200000,
+	"claude-opus-4":     200000,
 	// Llama (common vLLM deployments)
-	"llama-3":     8192,
-	"llama-3.1":   128000,
-	"llama-3.2":   128000,
-	"llama-3.3":   128000,
+	"llama-3":   8192,
+	"llama-3.1": 128000,
+	"llama-3.2": 128000,
+	"llama-3.3": 128000,
 	// Mistral
 	"mistral-7b":    32768,
 	"mixtral-8x7b":  32768,
@@ -181,21 +181,11 @@ func (r *RLM) getResponseTokenBudget() int {
 
 // ─── Token Estimation ────────────────────────────────────────────────────────
 
-// EstimateTokens provides a fast approximation of token count for a string.
-// Uses a character-to-token ratio heuristic. This is intentionally conservative
-// (over-estimates slightly) to avoid overflow.
-//
-// Approximate ratios for common encodings:
-//   - English text: ~4 chars/token (cl100k_base)
-//   - JSON/code:    ~3.5 chars/token
-//   - CJK text:     ~1.5 chars/token
-//   - Mixed:        ~3.5 chars/token (safe default)
+// EstimateTokens returns the token count for a string using the global tokenizer.
+// When SetDefaultTokenizer has been called with a model name, this uses accurate
+// BPE tokenization via tiktoken. Otherwise falls back to a ~3.5 chars/token heuristic.
 func EstimateTokens(text string) int {
-	if len(text) == 0 {
-		return 0
-	}
-	// Use 3.5 chars/token as conservative estimate
-	return (len(text)*10 + 34) / 35 // equivalent to ceil(len/3.5)
+	return GetTokenizer().CountTokens(text)
 }
 
 // EstimateMessagesTokens estimates the total tokens for a set of chat messages.
@@ -477,23 +467,19 @@ func (cr *contextReducer) reduceByMapReduce(query string, chunks []string, model
 }
 
 // reduceByTruncation simply truncates context to fit within the limit.
+// Uses the shared TruncateText utility (compression.go).
 func (cr *contextReducer) reduceByTruncation(context string, modelLimit int, overhead int) (string, error) {
 	cr.obs.Debug("overflow", "Using truncation strategy")
 
 	availableTokens := modelLimit - overhead
-	maxChars := availableTokens * 3 // Conservative chars-to-tokens
+	truncated := TruncateText(context, TruncateTextParams{
+		MaxTokens:  availableTokens,
+		MarkerText: "\n\n[... context truncated due to token limit ...]\n\n",
+	})
 
-	if maxChars >= len(context) {
+	if truncated == context {
 		return context, nil
 	}
-
-	// Keep beginning and end, truncate middle (addresses "lost in the middle" problem)
-	keepFromStart := maxChars * 2 / 3
-	keepFromEnd := maxChars / 3
-
-	truncated := context[:keepFromStart] +
-		"\n\n[... context truncated due to token limit ...]\n\n" +
-		context[len(context)-keepFromEnd:]
 
 	cr.obs.Debug("overflow", "Truncated context: %d -> %d chars", len(context), len(truncated))
 	return truncated, nil
@@ -721,4 +707,3 @@ func (cr *contextReducer) reduceByTextRank(context string, modelLimit int, overh
 		len(context), len(result), EstimateTokens(context), EstimateTokens(result))
 	return result, nil
 }
-

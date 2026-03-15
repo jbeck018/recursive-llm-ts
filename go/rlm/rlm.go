@@ -21,6 +21,7 @@ type RLM struct {
 	observer         *Observer
 	metaAgent        *MetaAgent
 	contextOverflow  *ContextOverflowConfig
+	lcmEngine        *LCMEngine // Lossless Context Management engine (optional)
 }
 
 func New(model string, config Config) *RLM {
@@ -37,6 +38,9 @@ func New(model string, config Config) *RLM {
 		obs = NewNoopObserver()
 	}
 
+	// Configure tokenizer for accurate token counting with this model
+	SetDefaultTokenizer(model)
+
 	r := &RLM{
 		model:            model,
 		recursiveModel:   recursiveModel,
@@ -52,7 +56,6 @@ func New(model string, config Config) *RLM {
 		stats:            RLMStats{},
 		observer:         obs,
 	}
-
 	// Setup meta-agent if enabled
 	if config.MetaAgent != nil && config.MetaAgent.Enabled {
 		r.metaAgent = NewMetaAgent(r, *config.MetaAgent, obs)
@@ -65,6 +68,19 @@ func New(model string, config Config) *RLM {
 		// Enable by default with sensible defaults
 		defaultConfig := DefaultContextOverflowConfig()
 		r.contextOverflow = &defaultConfig
+	}
+
+	// Setup LCM engine if enabled
+	if config.LCM != nil && config.LCM.Enabled {
+		store := NewLCMStore(fmt.Sprintf("session_%d", time.Now().UnixNano()))
+		summarizer := NewLCMSummarizer(model, config.APIBase, config.APIKey, config.TimeoutSeconds, config.ExtraParams, obs)
+		modelLimit := 0
+		if config.ContextOverflow != nil && config.ContextOverflow.MaxModelTokens > 0 {
+			modelLimit = config.ContextOverflow.MaxModelTokens
+		} else {
+			modelLimit = LookupModelTokenLimit(model)
+		}
+		r.lcmEngine = NewLCMEngine(*config.LCM, store, summarizer, obs, modelLimit)
 	}
 
 	return r
@@ -100,6 +116,13 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 	r.stats.Depth = r.currentDepth
 	replEnv := r.buildREPLEnv(query, context)
 	systemPrompt := BuildSystemPrompt(len(context), r.currentDepth, query, r.useMetacognitive)
+
+	// ─── LCM-managed completion flow ────────────────────────────────────
+	if r.lcmEngine != nil && r.lcmEngine.IsEnabled() {
+		return r.completionWithLCM(query, systemPrompt, replEnv)
+	}
+
+	// ─── Legacy completion flow (no LCM) ────────────────────────────────
 	messages := []Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: query},
@@ -170,6 +193,89 @@ func (r *RLM) Completion(query string, context string) (string, RLMStats, error)
 
 		messages = append(messages, Message{Role: "assistant", Content: response})
 		messages = append(messages, Message{Role: "user", Content: execResult})
+	}
+
+	return "", r.stats, NewMaxIterationsError(r.maxIterations)
+}
+
+// completionWithLCM runs the completion loop using the LCM engine for context management.
+// Messages flow through the LCM store: persisted verbatim in the immutable store,
+// active context assembled from recent messages + summary nodes, and compaction
+// triggered via the context control loop after each turn.
+func (r *RLM) completionWithLCM(query string, systemPrompt string, replEnv map[string]interface{}) (string, RLMStats, error) {
+	store := r.lcmEngine.GetStore()
+
+	// Persist system prompt and initial query in the immutable store
+	store.PersistMessage(RoleSystem, systemPrompt, nil)
+	store.PersistMessage(RoleUser, query, nil)
+
+	r.observer.Debug("rlm.lcm", "Starting LCM-managed completion, initial tokens: %d",
+		store.ActiveContextTokens())
+
+	for iteration := 0; iteration < r.maxIterations; iteration++ {
+		r.stats.Iterations = iteration + 1
+		r.observer.Debug("rlm.lcm", "Iteration %d/%d at depth %d (active tokens: %d)",
+			iteration+1, r.maxIterations, r.currentDepth, store.ActiveContextTokens())
+
+		// Run the LCM context control loop (may trigger async or blocking compaction)
+		if err := r.lcmEngine.OnNewItem(); err != nil {
+			r.observer.Error("rlm.lcm", "Context control loop error: %v", err)
+			// Non-fatal: continue with current context
+		}
+
+		// Build messages from the active context (includes summaries with IDs)
+		messages := store.BuildMessages()
+
+		response, err := r.callLLM(messages)
+		if err != nil {
+			// Check for context overflow — LCM should handle this via compaction,
+			// but fall back to blocking compaction if the API still rejects
+			if r.contextOverflow != nil && r.contextOverflow.Enabled {
+				if _, isOverflow := IsContextOverflow(err); isOverflow {
+					r.observer.Debug("rlm.lcm", "Context overflow despite LCM, forcing blocking compaction")
+					if compactErr := r.lcmEngine.blockingCompaction(); compactErr != nil {
+						r.observer.Error("rlm.lcm", "Emergency compaction failed: %v", compactErr)
+						return "", r.stats, err
+					}
+					// Also try condensing old summaries to free more space
+					_ = r.lcmEngine.CondenseOldSummaries()
+					iteration-- // Retry
+					continue
+				}
+			}
+			r.observer.Error("rlm.lcm", "LLM call failed on iteration %d: %v", iteration+1, err)
+			return "", r.stats, err
+		}
+
+		// Persist assistant response in the immutable store
+		store.PersistMessage(RoleAssistant, response, nil)
+
+		if IsFinal(response) {
+			answer, ok := ParseResponse(response, replEnv)
+			if ok {
+				r.observer.Debug("rlm.lcm", "FINAL answer on iteration %d (store: %d msgs, %d summaries)",
+					iteration+1, store.MessageCount(), store.Stats().TotalSummaries)
+				r.observer.Event("rlm.lcm.completion_success", map[string]string{
+					"iterations":        fmt.Sprintf("%d", iteration+1),
+					"llm_calls":         fmt.Sprintf("%d", r.stats.LlmCalls),
+					"total_messages":    fmt.Sprintf("%d", store.MessageCount()),
+					"total_summaries":   fmt.Sprintf("%d", store.Stats().TotalSummaries),
+					"compression_ratio": fmt.Sprintf("%.2f", store.Stats().CompressionRatio),
+				})
+				return answer, r.stats, nil
+			}
+		}
+
+		execResult, err := r.repl.Execute(response, replEnv)
+		if err != nil {
+			r.observer.Debug("rlm.lcm", "REPL execution error: %v", err)
+			execResult = fmt.Sprintf("Error: %s", err.Error())
+		} else {
+			r.observer.Debug("rlm.lcm", "REPL output: %s", truncateStr(execResult, 200))
+		}
+
+		// Persist REPL result as user message in the immutable store
+		store.PersistMessage(RoleUser, execResult, nil)
 	}
 
 	return "", r.stats, NewMaxIterationsError(r.maxIterations)
@@ -300,6 +406,23 @@ func pruneMessages(messages []Message, targetTokens int) []Message {
 // GetObserver returns the observer for external access to events/traces.
 func (r *RLM) GetObserver() *Observer {
 	return r.observer
+}
+
+// GetLCMEngine returns the LCM engine if enabled, nil otherwise.
+func (r *RLM) GetLCMEngine() *LCMEngine {
+	return r.lcmEngine
+}
+
+// LLMMap executes an LLM-Map operation for parallel batch processing.
+func (r *RLM) LLMMap(config LLMMapConfig) (*LLMMapResult, error) {
+	mapper := NewLLMMapper(r.model, r.apiBase, r.apiKey, r.timeoutSeconds, r.extraParams, r.observer)
+	return mapper.Execute(config)
+}
+
+// AgenticMap executes an Agentic-Map operation with full sub-agent sessions per item.
+func (r *RLM) AgenticMap(config AgenticMapConfig) (*AgenticMapResult, error) {
+	mapper := NewAgenticMapper(r.model, r.apiBase, r.apiKey, r.timeoutSeconds, r.extraParams, r.observer)
+	return mapper.Execute(config)
 }
 
 // Shutdown gracefully shuts down the RLM engine and its observer.

@@ -15,6 +15,8 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 **Performance & Resilience**
 - **Pure Go Backend** - 50x faster startup, 3x less memory vs Python
 - **Context Overflow Recovery** - Automatic detection and 6 reduction strategies (mapreduce, truncate, chunked, tfidf, textrank, refine)
+- **Lossless Context Management** - Episodic memory, 5-level summarization escalation, SQLite persistence with FTS5 search
+- **BPE Token Counting** - Accurate model-specific tokenization via tiktoken (o200k, cl100k) with cached counting
 - **Caching** - Exact-match caching with in-memory and file-based backends
 - **Retry & Fallback** - Exponential backoff, jitter, and multi-provider fallback chains
 - **AbortController** - Cancel any operation mid-flight
@@ -32,7 +34,7 @@ TypeScript/JavaScript package for [Recursive Language Models (RLM)](https://gith
 - **Meta-Agent Mode** - Automatically optimize queries for better results
 - **Observability** - OpenTelemetry tracing, Langfuse integration, and debug logging
 - **File Storage** - Process local directories or S3/MinIO/LocalStack buckets as LLM context
-- **150+ Tests** - Comprehensive Vitest + Go test suites
+- **200+ Tests** - Comprehensive Vitest + Go test suites
 
 ## Installation
 

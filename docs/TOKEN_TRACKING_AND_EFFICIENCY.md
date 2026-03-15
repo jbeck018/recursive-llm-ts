@@ -427,8 +427,55 @@ const rlm = new RLM('my-custom-model', {
 
 ---
 
-## Related Documentation
+## BPE Tokenizer (New in v5.0)
 
+### Accurate Token Counting
+
+RLM now includes model-specific BPE tokenization via tiktoken-go, replacing the heuristic ~3.5 chars/token estimation:
+
+| Model Family | Encoding | Example Models |
+|-------------|----------|---------------|
+| o200k_base | GPT-4o, O1, O3 | gpt-4o, gpt-4o-mini, o1, o3-mini |
+| cl100k_base | GPT-4, GPT-3.5, Claude | gpt-4, gpt-3.5-turbo, claude-3-opus |
+
+The tokenizer is initialized automatically during engine creation and cached for performance (xxhash-keyed sync.Map, 10K entries).
+
+### Heuristic vs BPE Accuracy
+
+Reproducible benchmark results (run with: go test ./rlm/ -run "TestContextSavings_" -v):
+
+| Content Type | Heuristic | BPE | Difference |
+|-------------|-----------|-----|------------|
+| English Prose | 1,144 | 546 | +109.5% over-estimate |
+| Go Code | 124 | 110 | +12.7% over-estimate |
+| JSON | 118 | 143 | -17.5% under-estimate |
+| CJK Text | 65 | 51 | +27.5% over-estimate |
+
+The heuristic systematically over-estimates for English and CJK but under-estimates for JSON. BPE tokenization eliminates these biases.
+
+### Five-Level Summarization Benchmarks
+
+Non-LLM compression levels (5K token input → 2K token target):
+
+| Level | Strategy | Output Tokens | Reduction | Preserves Sentences |
+|-------|----------|--------------|-----------|-------------------|
+| 3 | TF-IDF | 1,989 | 59.7% | Yes |
+| 4 | TextRank | 1,972 | 60.0% | Yes |
+| 5 | Truncate | 1,723 | 65.1% | No |
+
+### Combined Pipeline Savings
+
+Full context management pipeline (100 messages, episodic grouping + TF-IDF compaction):
+
+| Stage | Tokens | Savings |
+|-------|--------|---------|
+| Raw messages | 50,491 | — |
+| After TF-IDF compaction | 7,669 | 84.8% |
+| After budget selection (8K) | 7,669 | 84.8% |
+
+---
+
+## Related Documentation
 - [Architecture Overview](ARCHITECTURE.md) -- Full system architecture including context overflow flow
 - [Quick Start Guide](QUICKSTART.md) -- Getting started with RLM
 - [Testing Guide](TESTING_GUIDE.md) -- Running the full test suite

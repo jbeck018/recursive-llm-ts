@@ -70,6 +70,7 @@ type Config struct {
 	MetaAgent         *MetaAgentConfig
 	Observability     *ObservabilityConfig
 	ContextOverflow   *ContextOverflowConfig
+	LCM              *LCMConfig // Lossless Context Management configuration
 }
 
 func ConfigFromMap(config map[string]interface{}) Config {
@@ -126,6 +127,27 @@ func ConfigFromMap(config map[string]interface{}) Config {
 		parsed.ContextOverflow = &co
 	}
 
+	// Extract LCM config
+	if lcmConfig, ok := config["lcm"].(map[string]interface{}); ok {
+		lcm := DefaultLCMConfig()
+		if v, ok := lcmConfig["enabled"].(bool); ok {
+			lcm.Enabled = v
+		}
+		if v, ok := toInt(lcmConfig["soft_threshold"]); ok {
+			lcm.SoftThreshold = v
+		}
+		if v, ok := toInt(lcmConfig["hard_threshold"]); ok {
+			lcm.HardThreshold = v
+		}
+		if v, ok := toInt(lcmConfig["compaction_block_size"]); ok {
+			lcm.CompactionBlockSize = v
+		}
+		if v, ok := toInt(lcmConfig["summary_target_tokens"]); ok {
+			lcm.SummaryTargetTokens = v
+		}
+		parsed.LCM = &lcm
+	}
+
 	for key, value := range config {
 		switch key {
 		case "recursive_model":
@@ -159,7 +181,7 @@ func ConfigFromMap(config map[string]interface{}) Config {
 			"trace_endpoint", "service_name", "log_output",
 			"langfuse_enabled", "langfuse_public_key",
 			"langfuse_secret_key", "langfuse_host",
-			"context_overflow":
+			"context_overflow", "lcm":
 			// ignore bridge-only config, meta_agent, observability, context_overflow (handled above/separately)
 		default:
 			parsed.ExtraParams[key] = value

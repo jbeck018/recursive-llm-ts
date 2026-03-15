@@ -33,3 +33,4 @@ test-output.txt
 .howler-agents/
 .claude/
 .mcp.json
+.claude/memory.db

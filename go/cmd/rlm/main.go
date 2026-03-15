@@ -14,7 +14,9 @@ type requestPayload struct {
 	Query      string                 `json:"query"`
 	Context    string                 `json:"context"`
 	Config     map[string]interface{} `json:"config"`
-	Structured *structuredRequest     `json:"structured,omitempty"`
+	Structured  *structuredRequest      `json:"structured,omitempty"`
+	LLMMap      *rlm.LLMMapConfig      `json:"llm_map,omitempty"`      // LCM LLM-Map operation
+	AgenticMap  *rlm.AgenticMapConfig  `json:"agentic_map,omitempty"`  // LCM Agentic-Map operation
 }
 
 type structuredRequest struct {
@@ -24,10 +26,13 @@ type structuredRequest struct {
 }
 
 type responsePayload struct {
-	Result           interface{}  `json:"result"`
-	Stats            rlm.RLMStats `json:"stats"`
-	StructuredResult bool         `json:"structured_result,omitempty"`
-	TraceEvents      interface{}  `json:"trace_events,omitempty"`
+	Result           interface{}        `json:"result"`
+	Stats            rlm.RLMStats       `json:"stats"`
+	StructuredResult bool               `json:"structured_result,omitempty"`
+	TraceEvents      interface{}        `json:"trace_events,omitempty"`
+	LCMStats          *rlm.LCMStoreStats    `json:"lcm_stats,omitempty"`
+	LLMMapResult      *rlm.LLMMapResult     `json:"llm_map_result,omitempty"`
+	AgenticMapResult  *rlm.AgenticMapResult  `json:"agentic_map_result,omitempty"`
 }
 
 func main() {
@@ -54,8 +59,30 @@ func main() {
 
 	var resp responsePayload
 
+	// Handle LLM-Map operation if requested
+	if req.LLMMap != nil {
+		mapResult, err := engine.LLMMap(*req.LLMMap)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		resp = responsePayload{
+			Result:       "llm_map_complete",
+			LLMMapResult: mapResult,
+		}
+	} else if req.AgenticMap != nil {
+		// Handle Agentic-Map operation
+		agenticResult, err := engine.AgenticMap(*req.AgenticMap)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		resp = responsePayload{
+			Result:           "agentic_map_complete",
+			AgenticMapResult: agenticResult,
+		}
+	} else if req.Structured != nil {
 	// Handle structured completion if requested
-	if req.Structured != nil {
 		structuredConfig := &rlm.StructuredConfig{
 			Schema:            req.Structured.Schema,
 			ParallelExecution: req.Structured.ParallelExecution,
@@ -94,6 +121,12 @@ func main() {
 		if len(events) > 0 {
 			resp.TraceEvents = events
 		}
+	}
+
+	// Include LCM stats if enabled
+	if lcmEngine := engine.GetLCMEngine(); lcmEngine != nil {
+		stats := lcmEngine.GetStore().Stats()
+		resp.LCMStats = &stats
 	}
 
 	payload, err := json.Marshal(resp)

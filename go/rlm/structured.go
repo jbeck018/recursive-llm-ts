@@ -514,17 +514,8 @@ func generateFieldQuery(fieldName string, schema *JSONSchema) string {
 
 // parseAndValidateJSON extracts JSON from response and validates against schema
 func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interface{}, error) {
-	// Remove markdown code blocks if present
-	result = strings.TrimSpace(result)
-	if strings.HasPrefix(result, "```") {
-		// Extract content between ``` markers
-		lines := strings.Split(result, "\n")
-		if len(lines) > 2 {
-			// Remove first line (```json or ```) and last line (```)
-			result = strings.Join(lines[1:len(lines)-1], "\n")
-			result = strings.TrimSpace(result)
-		}
-	}
+	// Remove markdown code blocks if present (shared utility)
+	result = StripMarkdownCodeBlock(result)
 
 	// For non-object schemas (arrays, primitives), handle special cases
 	if schema.Type != "object" {
@@ -602,7 +593,7 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 	}
 
 	// If full-string parse failed, use balanced-brace extraction to find JSON objects
-	jsonCandidates := extractBalancedJSON(result)
+	jsonCandidates := ExtractAllBalancedJSON(result)
 
 	if len(jsonCandidates) == 0 {
 		return nil, fmt.Errorf("no JSON object found in response: %s", truncateForError(result))
@@ -621,77 +612,9 @@ func parseAndValidateJSON(result string, schema *JSONSchema) (map[string]interfa
 	return nil, fmt.Errorf("no valid JSON object matching schema found in response")
 }
 
-// extractBalancedJSON finds all top-level JSON objects in a string by tracking
-// balanced braces. This handles arbitrary nesting depth, unlike the previous
-// regex approach that could only match 1 level of nesting.
-func extractBalancedJSON(s string) []string {
-	var results []string
-	inString := false
-	escaped := false
-
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-
-		if c == '{' && !inString {
-			// Found start of a potential JSON object; track balanced braces
-			depth := 0
-			inStr := false
-			esc := false
-			j := i
-
-			for j < len(s) {
-				ch := s[j]
-
-				if esc {
-					esc = false
-					j++
-					continue
-				}
-
-				if ch == '\\' && inStr {
-					esc = true
-					j++
-					continue
-				}
-
-				if ch == '"' {
-					inStr = !inStr
-				}
-
-				if !inStr {
-					if ch == '{' {
-						depth++
-					} else if ch == '}' {
-						depth--
-						if depth == 0 {
-							candidate := s[i : j+1]
-							results = append(results, candidate)
-							i = j // outer loop will increment past this
-							break
-						}
-					}
-				}
-
-				j++
-			}
-		}
-
-		// Track string state in the outer scan (for skipping { inside strings)
-		if escaped {
-			escaped = false
-			continue
-		}
-		if c == '\\' && inString {
-			escaped = true
-			continue
-		}
-		if c == '"' {
-			inString = !inString
-		}
-	}
-
-	return results
-}
+// extractBalancedJSON is an alias for ExtractAllBalancedJSON (shared in json_extraction.go).
+// Kept as package-level reference for backward compatibility with tests.
+var extractBalancedJSON = ExtractAllBalancedJSON
 
 // truncateForError truncates a string for use in error messages
 func truncateForError(s string) string {

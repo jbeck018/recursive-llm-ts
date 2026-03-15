@@ -10,6 +10,13 @@ import (
 	"testing"
 )
 
+func useHeuristicTokenizerForTest(t *testing.T) {
+	t.Helper()
+	ResetDefaultTokenizer()
+	t.Cleanup(func() {
+		ResetDefaultTokenizer()
+	})
+}
 // ─── Token Tracking Unit Tests ──────────────────────────────────────────────
 
 func TestTokenUsage_ParsedFromAPIResponse(t *testing.T) {
@@ -367,10 +374,11 @@ func generateLargeContext(targetTokens int) string {
 }
 
 func TestTokenEfficiency_TFIDFUsesFewerTokens(t *testing.T) {
+	useHeuristicTokenizerForTest(t)
+
 	// Generate a large context (~35,000 tokens, well over 32k)
 	largeContext := generateLargeContext(35000)
 	originalTokens := EstimateTokens(largeContext)
-
 	if originalTokens < 32000 {
 		t.Fatalf("generated context is too small: %d tokens, need at least 32000", originalTokens)
 	}
@@ -407,9 +415,10 @@ func TestTokenEfficiency_TFIDFUsesFewerTokens(t *testing.T) {
 }
 
 func TestTokenEfficiency_TextRankUsesFewerTokens(t *testing.T) {
+	useHeuristicTokenizerForTest(t)
+
 	largeContext := generateLargeContext(35000)
 	originalTokens := EstimateTokens(largeContext)
-
 	if originalTokens < 32000 {
 		t.Fatalf("generated context is too small: %d tokens, need at least 32000", originalTokens)
 	}
@@ -442,6 +451,8 @@ func TestTokenEfficiency_TextRankUsesFewerTokens(t *testing.T) {
 }
 
 func TestTokenEfficiency_TruncateUsesFewerTokens(t *testing.T) {
+	useHeuristicTokenizerForTest(t)
+
 	largeContext := generateLargeContext(35000)
 	originalTokens := EstimateTokens(largeContext)
 
@@ -569,10 +580,11 @@ func TestTokenEfficiency_PreemptiveReduction(t *testing.T) {
 }
 
 func TestTokenEfficiency_AllStrategiesCompared(t *testing.T) {
+	useHeuristicTokenizerForTest(t)
+
 	// Generate a 40k token context (well over 32k limit)
 	largeContext := generateLargeContext(40000)
 	originalTokens := EstimateTokens(largeContext)
-
 	if originalTokens < 35000 {
 		t.Fatalf("generated context is too small: %d tokens, need at least 35000", originalTokens)
 	}
@@ -663,10 +675,11 @@ func TestTokenEfficiency_AllStrategiesCompared(t *testing.T) {
 }
 
 func TestTokenEfficiency_VeryLargeContext_100kTokens(t *testing.T) {
+	useHeuristicTokenizerForTest(t)
+
 	// Test with a very large context (~100k tokens) to prove scaling
 	largeContext := generateLargeContext(100000)
 	originalTokens := EstimateTokens(largeContext)
-
 	if originalTokens < 90000 {
 		t.Fatalf("generated context is too small: %d tokens, need at least 90000", originalTokens)
 	}
@@ -827,10 +840,11 @@ func TestTokenEfficiency_StructuredCompletion_TracksTokens(t *testing.T) {
 // ─── Token Estimation Accuracy Tests ─────────────────────────────────────────
 
 func TestEstimateTokens_AccuracyForLargeContent(t *testing.T) {
+	useHeuristicTokenizerForTest(t)
+
 	// Verify that our estimation stays reasonable for large content
 	content := generateLargeContext(32000)
 	estimated := EstimateTokens(content)
-
 	// Real tokenizer would give different results, but our estimation should be
 	// within a reasonable range. The key property: conservative (over-estimates slightly)
 	charToTokenRatio := float64(len(content)) / float64(estimated)

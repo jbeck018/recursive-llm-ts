@@ -57,6 +57,169 @@ export interface ContextOverflowConfig {
   max_reduction_attempts?: number;
 }
 
+// ─── LCM (Lossless Context Management) ─────────────────────────────────────
+
+export interface LCMConfig {
+  /** Enable LCM context management (default: false for backward compat) */
+  enabled?: boolean;
+  /** Soft token threshold — async compaction begins above this (default: 70% of model limit) */
+  soft_threshold?: number;
+  /** Hard token threshold — blocking compaction above this (default: 90% of model limit) */
+  hard_threshold?: number;
+  /** Number of messages to compact at once (default: 10) */
+  compaction_block_size?: number;
+  /** Target tokens per summary node (default: 500) */
+  summary_target_tokens?: number;
+  /** Large file handling configuration */
+  file_handling?: LCMFileConfig;
+  /** Episode-based context grouping configuration */
+  episodes?: EpisodeConfig;
+  /** Persistence backend configuration (default: in-memory) */
+  store_backend?: StoreBackendConfig;
+}
+
+export interface LCMFileConfig {
+  /** Token count above which files are stored externally with exploration summaries (default: 25000) */
+  token_threshold?: number;
+}
+
+export interface EpisodeConfig {
+  /** Max tokens before auto-closing an episode (default: 2000) */
+  max_episode_tokens?: number;
+  /** Max messages before auto-closing an episode (default: 20) */
+  max_episode_messages?: number;
+  /** Topic change sensitivity 0-1 (reserved for future semantic detection) */
+  topic_change_threshold?: number;
+  /** Auto-generate summary when episode closes (default: true) */
+  auto_compact_after_close?: boolean;
+}
+
+export interface Episode {
+  id: string;
+  title: string;
+  message_ids: string[];
+  start_time: string;
+  end_time: string;
+  tokens: number;
+  summary?: string;
+  summary_tokens?: number;
+  status: 'active' | 'compacted' | 'archived';
+  tags?: string[];
+  parent_episode_id?: string;
+}
+
+export interface StoreBackendConfig {
+  /** Backend type: 'memory' (default) or 'sqlite' */
+  type?: 'memory' | 'sqlite';
+  /** Path for SQLite database file (required when type is 'sqlite', use ':memory:' for in-memory SQLite) */
+  path?: string;
+}
+export interface LLMMapConfig {
+  /** Path to JSONL input file */
+  input_path: string;
+  /** Path to JSONL output file */
+  output_path: string;
+  /** Prompt template — use {{item}} as placeholder for each item */
+  prompt: string;
+  /** JSON Schema for output validation */
+  output_schema?: Record<string, any>;
+  /** Worker pool concurrency (default: 16) */
+  concurrency?: number;
+  /** Per-item retry limit (default: 3) */
+  max_retries?: number;
+  /** Model to use (defaults to engine model) */
+  model?: string;
+}
+
+export interface LLMMapResult {
+  total_items: number;
+  completed: number;
+  failed: number;
+  output_path: string;
+  duration_ms: number;
+  tokens_used: number;
+}
+
+export interface AgenticMapConfig {
+  /** Path to JSONL input file */
+  input_path: string;
+  /** Path to JSONL output file */
+  output_path: string;
+  /** Prompt template — use {{item}} as placeholder for each item */
+  prompt: string;
+  /** JSON Schema for output validation */
+  output_schema?: Record<string, any>;
+  /** Worker pool concurrency (default: 8) */
+  concurrency?: number;
+  /** Per-item retry limit (default: 2) */
+  max_retries?: number;
+  /** Model for sub-agents (defaults to engine model) */
+  model?: string;
+  /** If true, sub-agents cannot modify filesystem */
+  read_only?: boolean;
+  /** Max recursion depth for sub-agents (default: 3) */
+  max_depth?: number;
+  /** Max iterations per sub-agent (default: 15) */
+  max_iterations?: number;
+}
+
+export interface AgenticMapResult {
+  total_items: number;
+  completed: number;
+  failed: number;
+  output_path: string;
+  duration_ms: number;
+  tokens_used: number;
+}
+
+export interface DelegationRequest {
+  /** Task description for the sub-agent */
+  prompt: string;
+  /** Specific slice of work being handed off (required for non-root) */
+  delegated_scope?: string;
+  /** Work the caller retains (required for non-root) */
+  kept_work?: string;
+  /** Read-only exploration agent (exempt from guard) */
+  read_only?: boolean;
+  /** Parallel decomposition (exempt from guard) */
+  parallel?: boolean;
+}
+
+export interface LCMStoreStats {
+  total_messages: number;
+  total_summaries: number;
+  active_context_items: number;
+  active_context_tokens: number;
+  immutable_store_tokens: number;
+  compression_ratio: number;
+}
+
+export interface LCMGrepResult {
+  message_id: string;
+  role: string;
+  content: string;
+  summary_id?: string;
+  match_line: string;
+}
+
+export interface LCMDescribeResult {
+  type: 'message' | 'summary';
+  id: string;
+  tokens: number;
+  role?: string;
+  kind?: 'leaf' | 'condensed';
+  level?: number;
+  covered_ids?: string[];
+  file_ids?: string[];
+  content?: string;
+}
+
+export interface EpisodeListResult {
+  episodes: Episode[];
+  active_episode_id?: string;
+  total_episodes: number;
+}
+
 export interface RLMConfig {
   recursive_model?: string;
   api_base?: string;
@@ -74,6 +237,9 @@ export interface RLMConfig {
 
   // Context overflow recovery configuration
   context_overflow?: ContextOverflowConfig;
+
+  // LCM (Lossless Context Management) configuration
+  lcm?: LCMConfig;
 
   // Shorthand for observability.debug
   debug?: boolean;
