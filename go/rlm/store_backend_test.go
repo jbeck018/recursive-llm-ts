@@ -416,10 +416,7 @@ func TestSQLiteBackend_GetSummary_NotFound(t *testing.T) {
 }
 
 func TestStoreBackend_InterfaceCompliance(t *testing.T) {
-	var memoryBackend StoreBackend = NewMemoryBackend()
-	if memoryBackend == nil {
-		t.Fatal("MemoryBackend does not implement StoreBackend")
-	}
+	var _ StoreBackend = NewMemoryBackend()
 
 	sqliteBackend, err := NewSQLiteBackend(":memory:")
 	if err != nil {
@@ -427,8 +424,5 @@ func TestStoreBackend_InterfaceCompliance(t *testing.T) {
 	}
 	defer sqliteBackend.Close()
 
-	var storeBackend StoreBackend = sqliteBackend
-	if storeBackend == nil {
-		t.Fatal("SQLiteBackend does not implement StoreBackend")
-	}
+	var _ StoreBackend = sqliteBackend
 }

@@ -224,13 +224,6 @@ func (m *EpisodeManager) GetEpisodesForContext(tokenBudget int) []*Episode {
 	return result
 }
 
-// shouldCloseEpisode returns true when active episode exceeds configured limits.
-func (m *EpisodeManager) shouldCloseEpisode() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.shouldCloseEpisodeLocked()
-}
-
 func (m *EpisodeManager) shouldCloseEpisodeLocked() bool {
 	if m.activeEpisode == nil {
 		return false
