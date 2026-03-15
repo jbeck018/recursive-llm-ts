@@ -12,15 +12,19 @@ python_backup_*/
 docs/
 
 # Go test and development files
+go/rlm.test
 go/**/*_test.go
+go/rlm/*_test.go
+go/rlm/benchmark_test.go
+go/rlm/context_savings_test.go
 go/**/*.sh
+go/integration_test.sh
+go/test_*.sh
 go/rlm
 go/README.md
-go/integration_test.sh
 go/test_mock.sh
 go/test_rlm.sh
 go/test_simple.sh
-
 # Test results and artifacts
 test_results_*.json
 test_output_*.txt
