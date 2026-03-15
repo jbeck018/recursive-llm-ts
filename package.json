@@ -6,8 +6,11 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
-    "bin",
-    "go",
+    "go/cmd",
+    "go/go.mod",
+    "go/go.sum",
+    "go/rlm/*.go",
+    "!go/rlm/*_test.go",
     "scripts/build-go-binary.js"
   ],
   "scripts": {
