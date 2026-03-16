@@ -55,6 +55,12 @@
               <a href="#observability-config" class="sidebar-link">ObservabilityConfig</a>
               <a href="#file-storage-config" class="sidebar-link">FileStorageConfig</a>
               <a href="#context-overflow-config" class="sidebar-link">ContextOverflowConfig</a>
+              <a href="#lcm-config" class="sidebar-link">LCMConfig</a>
+              <a href="#episode-config" class="sidebar-link">EpisodeConfig</a>
+              <a href="#store-backend-config" class="sidebar-link">StoreBackendConfig</a>
+              <a href="#llm-map-config" class="sidebar-link">LLMMapConfig</a>
+              <a href="#agentic-map-config" class="sidebar-link">AgenticMapConfig</a>
+              <a href="#delegation-request" class="sidebar-link">DelegationRequest</a>
             </div>
             <div class="sidebar-section">
               <div class="sidebar-title">Types</div>
@@ -999,6 +1005,124 @@
               </tr>
             </tbody>
           </table>
+
+          <h2 id="lcm-config">LCMConfig</h2>
+          <p>Configuration for Lossless Context Management. New in v5.0.</p>
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">LCMConfig</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>enabled</code></td><td><code>boolean</code></td><td>Enable LCM context management (default: <code>false</code>)</td></tr>
+                  <tr><td><code>soft_threshold</code></td><td><code>number</code></td><td>Async compaction begins above this token count (default: 70% of model limit)</td></tr>
+                  <tr><td><code>hard_threshold</code></td><td><code>number</code></td><td>Blocking compaction above this (default: 90% of model limit)</td></tr>
+                  <tr><td><code>compaction_block_size</code></td><td><code>number</code></td><td>Messages to compact at once (default: <code>10</code>)</td></tr>
+                  <tr><td><code>summary_target_tokens</code></td><td><code>number</code></td><td>Target tokens per summary node (default: <code>500</code>)</td></tr>
+                  <tr><td><code>episodes</code></td><td><code>EpisodeConfig</code></td><td>Episode-based context grouping config</td></tr>
+                  <tr><td><code>store_backend</code></td><td><code>StoreBackendConfig</code></td><td>Persistence backend config</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <h2 id="episode-config">EpisodeConfig</h2>
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">EpisodeConfig</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>max_episode_tokens</code></td><td><code>number</code></td><td>Auto-close episode above this (default: <code>2000</code>)</td></tr>
+                  <tr><td><code>max_episode_messages</code></td><td><code>number</code></td><td>Auto-close episode above this (default: <code>20</code>)</td></tr>
+                  <tr><td><code>auto_compact_after_close</code></td><td><code>boolean</code></td><td>Generate summary when episode closes (default: <code>true</code>)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <h2 id="store-backend-config">StoreBackendConfig</h2>
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">StoreBackendConfig</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>type</code></td><td><code>'memory' | 'sqlite'</code></td><td>Backend type (default: <code>'memory'</code>)</td></tr>
+                  <tr><td><code>path</code></td><td><code>string</code></td><td>SQLite database path (required for <code>'sqlite'</code>, use <code>':memory:'</code> for in-memory)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <h2 id="llm-map-config">LLMMapConfig</h2>
+          <p>Configuration for parallel batch processing via LLM-Map operator.</p>
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">LLMMapConfig</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>input_path</code></td><td><code>string</code></td><td>Path to JSONL input file</td></tr>
+                  <tr><td><code>output_path</code></td><td><code>string</code></td><td>Path to JSONL output file</td></tr>
+                  <tr><td><code>prompt</code></td><td><code>string</code></td><td>Prompt template &mdash; use <code>{{item}}</code> placeholder</td></tr>
+                  <tr><td><code>output_schema</code></td><td><code>object</code></td><td>JSON Schema for per-item output validation</td></tr>
+                  <tr><td><code>concurrency</code></td><td><code>number</code></td><td>Worker pool size (default: <code>16</code>)</td></tr>
+                  <tr><td><code>max_retries</code></td><td><code>number</code></td><td>Per-item retry limit (default: <code>3</code>)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <h2 id="agentic-map-config">AgenticMapConfig</h2>
+          <p>Configuration for sub-agent batch processing via Agentic-Map operator.</p>
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">AgenticMapConfig</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>input_path</code></td><td><code>string</code></td><td>Path to JSONL input file</td></tr>
+                  <tr><td><code>output_path</code></td><td><code>string</code></td><td>Path to JSONL output file</td></tr>
+                  <tr><td><code>prompt</code></td><td><code>string</code></td><td>Prompt template &mdash; use <code>{{item}}</code> placeholder</td></tr>
+                  <tr><td><code>concurrency</code></td><td><code>number</code></td><td>Worker pool size (default: <code>8</code>)</td></tr>
+                  <tr><td><code>read_only</code></td><td><code>boolean</code></td><td>Sub-agents cannot modify filesystem</td></tr>
+                  <tr><td><code>max_depth</code></td><td><code>number</code></td><td>Max recursion depth per sub-agent (default: <code>3</code>)</td></tr>
+                  <tr><td><code>max_iterations</code></td><td><code>number</code></td><td>Max iterations per sub-agent (default: <code>15</code>)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <h2 id="delegation-request">DelegationRequest</h2>
+          <p>Request structure for task delegation with infinite recursion guard.</p>
+          <div class="api-method">
+            <div class="api-method-header">
+              <span class="api-method-name">DelegationRequest</span>
+            </div>
+            <div class="api-method-body">
+              <table class="api-params">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                  <tr><td><code>prompt</code></td><td><code>string</code></td><td>Task description for the sub-agent</td></tr>
+                  <tr><td><code>delegated_scope</code></td><td><code>string</code></td><td>Specific slice of work being handed off</td></tr>
+                  <tr><td><code>kept_work</code></td><td><code>string</code></td><td>Work the caller retains (must be non-trivial)</td></tr>
+                  <tr><td><code>read_only</code></td><td><code>boolean</code></td><td>Read-only exploration agent (exempt from guard)</td></tr>
+                  <tr><td><code>parallel</code></td><td><code>boolean</code></td><td>Parallel decomposition (exempt from guard)</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <!-- Result Types -->
           <h2 id="rlm-result">RLMResult</h2>

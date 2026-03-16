@@ -70,12 +70,12 @@
       <div class="container">
         <div class="stats-bar">
           <div class="stat-item">
-            <div class="stat-value">50x</div>
-            <div class="stat-label">Faster Startup</div>
+            <div class="stat-value">84.8%</div>
+            <div class="stat-label">Context Savings</div>
           </div>
           <div class="stat-item">
-            <div class="stat-value">3x</div>
-            <div class="stat-label">Less Memory</div>
+            <div class="stat-value">131KB</div>
+            <div class="stat-label">Package Size</div>
           </div>
           <div class="stat-item">
             <div class="stat-value">10M+</div>
@@ -166,6 +166,36 @@
             <h3>Context Overflow Recovery</h3>
             <p>Automatic recovery when context exceeds model limits. 6 strategies: MapReduce, Truncate, Chunked, TF-IDF, TextRank, and Refine. Works with any model size.</p>
           </div>
+          <div class="feature-card">
+            <div class="feature-icon red">&#128274;</div>
+            <h3>Lossless Context Management</h3>
+            <p>Immutable Store + Summary DAG ensures no context is ever lost. Soft/hard token thresholds with automatic compaction. Zero overhead below soft threshold.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon blue">&#127919;</div>
+            <h3>BPE Tokenizer</h3>
+            <p>Model-specific token counting via tiktoken (o200k_base for GPT-4o, cl100k_base for GPT-4). Cached counting with xxhash. Heuristic fallback for unknown models.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon purple">&#128218;</div>
+            <h3>Episodic Memory</h3>
+            <p>Group messages into coherent episodes with auto-rotation, compaction, and budget-based retrieval. Parent chaining preserves conversation continuity.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon green">&#9881;</div>
+            <h3>LLM-Map &amp; Agentic-Map</h3>
+            <p>Parallel batch processing with schema validation per item. Agentic-Map spawns full sub-agent sessions. Worker pools with configurable concurrency.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon yellow">&#128190;</div>
+            <h3>SQLite Persistence</h3>
+            <p>Pure Go SQLite with FTS5 full-text search, WAL mode, and transactional writes. In-memory backend for zero-dependency usage. Indexed lookups by ID, role, timestamp.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon red">&#128737;</div>
+            <h3>Delegation Guard</h3>
+            <p>Infinite recursion prevention with scope-reduction invariant. Sub-agents must declare delegated_scope and kept_work. Trivial delegation is rejected.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -223,6 +253,65 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Benchmarks -->
+    <section class="section" id="benchmarks">
+      <div class="container">
+        <div class="section-header">
+          <h2>Proven Results</h2>
+          <p>Reproducible benchmarks from the test suite. No LLM calls required &mdash; run them yourself.</p>
+        </div>
+        <div class="stats-bar" style="margin-bottom: 48px;">
+          <div class="stat-item">
+            <div class="stat-value">84.8%</div>
+            <div class="stat-label">Context Savings</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">131KB</div>
+            <div class="stat-label">Package Size</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">5-Level</div>
+            <div class="stat-label">Summarization</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">BPE</div>
+            <div class="stat-label">Token Accuracy</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <h3 style="margin-top: 0;">Context Savings Pipeline</h3>
+            <p>100 messages through episodic grouping + TF-IDF compaction:</p>
+            <table class="config-table">
+              <thead><tr><th>Stage</th><th>Tokens</th><th>Savings</th></tr></thead>
+              <tbody>
+                <tr><td>Raw messages</td><td><code>50,491</code></td><td>&mdash;</td></tr>
+                <tr><td>After TF-IDF compaction</td><td><code>7,669</code></td><td>84.8%</td></tr>
+                <tr><td>After budget selection (8K)</td><td><code>7,669</code></td><td>84.8%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3 style="margin-top: 0;">Five-Level Summarization</h3>
+            <p>5K token input &rarr; 2K token target (non-LLM levels):</p>
+            <table class="config-table">
+              <thead><tr><th>Level</th><th>Strategy</th><th>Reduction</th></tr></thead>
+              <tbody>
+                <tr><td>Level 3</td><td>TF-IDF</td><td>59.7%</td></tr>
+                <tr><td>Level 4</td><td>TextRank</td><td>60.0%</td></tr>
+                <tr><td>Level 5</td><td>Truncate</td><td>65.1%</td></tr>
+              </tbody>
+            </table>
+            <div class="callout info" style="margin-top: 16px;">
+              <div class="callout-title">Run benchmarks yourself</div>
+              <p><code>cd go &amp;&amp; go test ./rlm/ -run "TestContextSavings_" -v</code></p>
             </div>
           </div>
         </div>

@@ -69,6 +69,17 @@
               <a href="#config-validation" class="sidebar-link">Config Validation</a>
             </div>
             <div class="sidebar-section">
+              <div class="sidebar-title">LCM (v5.0)</div>
+              <a href="#lcm-overview" class="sidebar-link">Overview</a>
+              <a href="#lcm-config" class="sidebar-link">Configuration</a>
+              <a href="#lcm-episodes" class="sidebar-link">Episodic Memory</a>
+              <a href="#lcm-tokenizer" class="sidebar-link">BPE Tokenizer</a>
+              <a href="#lcm-summarization" class="sidebar-link">5-Level Summarization</a>
+              <a href="#lcm-operators" class="sidebar-link">Map Operators</a>
+              <a href="#lcm-delegation" class="sidebar-link">Task Delegation</a>
+              <a href="#lcm-persistence" class="sidebar-link">SQLite Persistence</a>
+            </div>
+            <div class="sidebar-section">
               <div class="sidebar-title">Deployment</div>
               <a href="#providers" class="sidebar-link">LLM Providers</a>
               <a href="#docker" class="sidebar-link">Docker</a>
@@ -795,6 +806,170 @@ for (const issue of result.issues) {
 assertValidConfig({ max_depth: -1 });
 // throws RLMConfigError</code></pre>
           </div>
+
+          <!-- LCM -->
+          <h2 id="lcm-overview">Lossless Context Management (LCM)</h2>
+          <p>LCM is an opt-in context management layer that replaces legacy message pruning with a deterministic, DAG-based architecture. Every message is persisted in an immutable store, and context is managed via a hierarchical summary DAG.</p>
+
+          <div class="callout info">
+            <div class="callout-title">New in v5.0</div>
+            <p>LCM is optional and backward-compatible. Enable it by setting <code>lcm.enabled: true</code> in your config. Without it, the engine behaves exactly as before.</p>
+          </div>
+
+          <h2 id="lcm-config">LCM Configuration</h2>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o', {
+  api_key: process.env.OPENAI_API_KEY,
+  lcm: {
+    enabled: true,
+    soft_threshold: 90000,   // 70% of 128k (async compaction)
+    hard_threshold: 115000,  // 90% of 128k (blocking compaction)
+    compaction_block_size: 10,
+    summary_target_tokens: 500,
+    episodes: {
+      max_episode_tokens: 2000,
+      max_episode_messages: 20,
+      auto_compact_after_close: true,
+    },
+    store_backend: {
+      type: 'sqlite',
+      path: './data/session.db',
+    },
+  },
+});</code></pre>
+          </div>
+
+          <p>The context control loop has three zones:</p>
+          <table class="config-table">
+            <thead><tr><th>Zone</th><th>Condition</th><th>Behavior</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Green</strong></td><td>tokens &lt; soft_threshold</td><td>Zero-cost continuity &mdash; no overhead</td></tr>
+              <tr><td><strong>Yellow</strong></td><td>soft &le; tokens &lt; hard</td><td>Async compaction between turns</td></tr>
+              <tr><td><strong>Red</strong></td><td>tokens &ge; hard_threshold</td><td>Blocking compaction before LLM call</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="lcm-episodes">Episodic Memory</h2>
+          <p>Episodes group related messages into coherent interaction units for compression and retrieval.</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">// Episodes are configured via the lcm.episodes block
+const rlm = new RLM('gpt-4o', {
+  lcm: {
+    enabled: true,
+    episodes: {
+      max_episode_tokens: 2000,    // Auto-rotate when exceeded
+      max_episode_messages: 20,    // Auto-rotate when exceeded
+      auto_compact_after_close: true, // Generate summary on close
+    },
+  },
+});</code></pre>
+          </div>
+          <p>Episode lifecycle: <strong>active</strong> &rarr; <strong>compacted</strong> (has summary) &rarr; <strong>archived</strong>. Budget-based retrieval selects episodes that fit within the token budget, always including the active episode.</p>
+
+          <h2 id="lcm-tokenizer">BPE Tokenizer</h2>
+          <p>RLM uses model-specific BPE tokenization via tiktoken-go, automatically selected during engine creation:</p>
+          <table class="config-table">
+            <thead><tr><th>Model Family</th><th>Encoding</th><th>Examples</th></tr></thead>
+            <tbody>
+              <tr><td>o200k_base</td><td>GPT-4o, O1, O3</td><td>gpt-4o, gpt-4o-mini, o1, o3-mini</td></tr>
+              <tr><td>cl100k_base</td><td>GPT-4, GPT-3.5, Claude</td><td>gpt-4, gpt-3.5-turbo, claude-3-opus</td></tr>
+            </tbody>
+          </table>
+          <p>Token counting is cached with xxhash-keyed sync.Map (10K entries). Falls back to a ~3.5 chars/token heuristic when BPE encoding is unavailable.</p>
+
+          <h2 id="lcm-summarization">Five-Level Summarization</h2>
+          <p>When context exceeds thresholds, LCM escalates through five compression levels. Level 5 is deterministic &mdash; guaranteed convergence with no LLM calls:</p>
+          <table class="config-table">
+            <thead><tr><th>Level</th><th>Strategy</th><th>LLM?</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>Normal</td><td>Yes</td><td>LLM summarize with detail preservation</td></tr>
+              <tr><td>2</td><td>Aggressive</td><td>Yes</td><td>LLM summarize as bullet points, target T/2</td></tr>
+              <tr><td>3</td><td>TF-IDF</td><td>No</td><td>Extractive compression via sentence scoring</td></tr>
+              <tr><td>4</td><td>TextRank</td><td>No</td><td>Graph-based PageRank sentence ranking</td></tr>
+              <tr><td>5</td><td>Truncate</td><td>No</td><td>Keep 2/3 start + 1/3 end, deterministic</td></tr>
+            </tbody>
+          </table>
+
+          <h2 id="lcm-operators">LLM-Map &amp; Agentic-Map</h2>
+          <p><strong>LLM-Map</strong> processes items in parallel with schema validation per item:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Go</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="go">result, err := engine.LLMMap(rlm.LLMMapConfig{
+  InputPath:  "data/items.jsonl",
+  OutputPath: "data/results.jsonl",
+  Prompt:     "Classify this item: {{item}}",
+  OutputSchema: &rlm.JSONSchema{Type: "object", Properties: map[string]*rlm.JSONSchema{
+    "category": {Type: "string"},
+  }},
+  Concurrency: 16,
+})</code></pre>
+          </div>
+          <p><strong>Agentic-Map</strong> spawns full sub-agent RLM sessions per item with tool access:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Go</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="go">result, err := engine.AgenticMap(rlm.AgenticMapConfig{
+  InputPath:  "data/repos.jsonl",
+  OutputPath: "data/analyses.jsonl",
+  Prompt:     "Analyze this repository: {{item}}",
+  Concurrency: 4,
+  ReadOnly:    true,
+})</code></pre>
+          </div>
+
+          <h2 id="lcm-delegation">Task Delegation</h2>
+          <p>The infinite delegation guard prevents unbounded recursion by requiring sub-agents to declare scope reduction:</p>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">Go</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="go">result, stats, err := engine.DelegateTask(rlm.DelegationRequest{
+  Prompt:         "Parse the config files",
+  DelegatedScope: "Parse config/ directory files",
+  KeptWork:       "Validate and apply extracted settings",
+})</code></pre>
+          </div>
+          <p>If <code>KeptWork</code> is trivial (e.g., "none", "waiting"), the delegation is rejected. Root agents (depth 0), read-only agents, and parallel decomposition are exempt.</p>
+
+          <h2 id="lcm-persistence">SQLite Persistence</h2>
+          <p>LCM supports two storage backends:</p>
+          <table class="config-table">
+            <thead><tr><th>Backend</th><th>Config</th><th>Use Case</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Memory</strong></td><td><code>type: 'memory'</code></td><td>Default, zero dependencies, ephemeral</td></tr>
+              <tr><td><strong>SQLite</strong></td><td><code>type: 'sqlite'</code></td><td>Persistent, FTS5 search, WAL mode, crash recovery</td></tr>
+            </tbody>
+          </table>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-lang">TypeScript</span>
+              <button class="code-copy">Copy</button>
+            </div>
+            <pre><code data-lang="typescript">const rlm = new RLM('gpt-4o', {
+  lcm: {
+    enabled: true,
+    store_backend: {
+      type: 'sqlite',
+      path: './data/session.db',  // or ':memory:' for in-memory SQLite
+    },
+  },
+});</code></pre>
+          </div>
+          <p>SQLite features: WAL mode for concurrent reads, FTS5 virtual tables for full-text message search, indexed lookups by ID/role/timestamp, transactional writes for crash recovery.</p>
 
           <!-- Deployment -->
           <h2 id="providers">LLM Providers</h2>
