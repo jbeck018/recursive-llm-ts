@@ -19,21 +19,34 @@ function goAvailable() {
 }
 
 if (!fs.existsSync(goRoot)) {
-  console.warn('[recursive-llm-ts] Go source directory not found; skipping Go build');
+  // No Go source — this is fine for pre-built binary installs
+  process.exit(0);
+}
+
+if (fs.existsSync(binaryPath)) {
+  console.log('[recursive-llm-ts] ✓ Go binary already exists at ' + binaryPath);
   process.exit(0);
 }
 
 if (!goAvailable()) {
-  console.warn('[recursive-llm-ts] Go is not installed; skipping Go binary build');
-  console.warn('[recursive-llm-ts] Install Go 1.25+ and rerun: node scripts/build-go-binary.js');
+  console.warn('');
+  console.warn('╔══════════════════════════════════════════════════════════════════╗');
+  console.warn('║  recursive-llm-ts: Go binary could not be built                 ║');
+  console.warn('║                                                                  ║');
+  console.warn('║  Go 1.25+ is required to compile the backend binary.             ║');
+  console.warn('║  Without it, all RLM operations will fail at runtime.            ║');
+  console.warn('║                                                                  ║');
+  console.warn('║  Install Go: https://go.dev/dl/                                  ║');
+  console.warn('║  Then run:   node scripts/build-go-binary.js                     ║');
+  console.warn('╚══════════════════════════════════════════════════════════════════╝');
+  console.warn('');
   process.exit(0);
 }
 
 try {
   fs.mkdirSync(binDir, { recursive: true });
-  // Build with optimization: -s removes symbol table, -w removes DWARF debug info
   execFileSync('go', ['build', '-ldflags=-s -w', '-o', binaryPath, './cmd/rlm'], { stdio: 'inherit', cwd: goRoot });
-  console.log(`[recursive-llm-ts] ✓ Go binary built at ${binaryPath}`);
+  console.log('[recursive-llm-ts] ✓ Go binary built at ' + binaryPath);
 } catch (error) {
   console.warn('[recursive-llm-ts] Warning: Failed to build Go binary');
   console.warn(error.message || error);

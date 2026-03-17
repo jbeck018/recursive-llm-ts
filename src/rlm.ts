@@ -14,9 +14,8 @@
  * ```
  */
 
-import { RLMConfig, RLMResult, RLMStats, TraceEvent, FileStorageConfig, ContextOverflowConfig } from './bridge-interface';
+import { RLMConfig, RLMResult, RLMStats, TraceEvent, FileStorageConfig, ContextOverflowConfig, Bridge } from './bridge-interface';
 import { createBridge, BridgeType } from './bridge-factory';
-import { PythonBridge } from './bridge-interface';
 import { z } from 'zod';
 import { StructuredRLMResult } from './structured-types';
 import { FileContextBuilder, FileStorageResult } from './file-storage';
@@ -125,7 +124,7 @@ export class RLMResultFormatter {
 export class RLMBuilder {
   private model: string;
   private config: RLMExtendedConfig = {};
-  private bridgeType: BridgeType = 'auto';
+  private bridgeType: BridgeType = 'go';
 
   constructor(model: string) {
     this.model = model;
@@ -227,7 +226,7 @@ export class RLMBuilder {
 // ─── Main RLM Class ──────────────────────────────────────────────────────────
 
 export class RLM {
-  private bridge: PythonBridge | null = null;
+  private bridge: Bridge | null = null;
   private model: string;
   private rlmConfig: RLMExtendedConfig;
   private bridgeType: BridgeType;
@@ -240,7 +239,7 @@ export class RLM {
    *
    * @param model - The LLM model identifier (e.g., 'gpt-4o-mini', 'claude-sonnet-4-20250514')
    * @param rlmConfig - Configuration options for the RLM engine
-   * @param bridgeType - Bridge selection: 'auto' (default), 'go', 'pythonia', 'bunpy'
+   * @param bridgeType - Bridge selection: 'go' (default)
    *
    * @example
    * ```typescript
@@ -252,7 +251,7 @@ export class RLM {
    * });
    * ```
    */
-  constructor(model: string, rlmConfig: RLMExtendedConfig = {}, bridgeType: BridgeType = 'auto') {
+  constructor(model: string, rlmConfig: RLMExtendedConfig = {}, bridgeType: BridgeType = 'go') {
     this.model = model;
     this.rlmConfig = this.normalizeConfig(rlmConfig);
     this.bridgeType = bridgeType;
@@ -342,7 +341,7 @@ export class RLM {
 
   // ─── Bridge Management ───────────────────────────────────────────────────
 
-  private async ensureBridge(): Promise<PythonBridge> {
+  private async ensureBridge(): Promise<Bridge> {
     if (!this.bridge) {
       this.bridge = await createBridge(this.bridgeType);
     }

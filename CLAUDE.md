@@ -83,7 +83,7 @@ TypeScript (parses result, exposes trace events)
 - `src/errors.ts` - Error hierarchy including RLMContextOverflowError, classifyError()
 - `src/file-storage.ts` - File storage providers (LocalFileStorage, S3FileStorage), FileContextBuilder, S3StorageError
 - `src/go-bridge.ts` - Spawns Go binary, handles stdin/stdout JSON IPC
-- `src/bridge-factory.ts` - Runtime detection, bridge selection (Go preferred, Python fallback)
+- `src/bridge-factory.ts` - Runtime Go binary detection, bridge creation
 - `src/structured-types.ts` - TypeScript interfaces for structured output (SubTask, CoordinatorConfig, SchemaDecomposition)
 
 **Go:**

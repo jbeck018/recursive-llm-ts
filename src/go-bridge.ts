@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
-import { PythonBridge, RLMConfig, RLMResult } from './bridge-interface';
+import { Bridge, RLMConfig, RLMResult } from './bridge-interface';
 
 const DEFAULT_BINARY_NAME = process.platform === 'win32' ? 'rlm-go.exe' : 'rlm-go';
 
@@ -36,11 +36,11 @@ function assertBinaryExists(binaryPath: string): void {
 }
 
 function sanitizeConfig(config: RLMConfig): { config: Record<string, unknown>, structured?: any } {
-  const { pythonia_timeout, go_binary_path, structured, ...sanitized } = config;
+  const { go_binary_path, structured, ...sanitized } = config;
   return { config: sanitized, structured };
 }
 
-export class GoBridge implements PythonBridge {
+export class GoBridge implements Bridge {
   public async completion(
     model: string,
     query: string,

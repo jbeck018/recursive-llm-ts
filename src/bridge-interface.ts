@@ -226,7 +226,6 @@ export interface RLMConfig {
   api_key?: string;
   max_depth?: number;
   max_iterations?: number;
-  pythonia_timeout?: number;  // Timeout in milliseconds for pythonia calls (default: 100000ms)
   go_binary_path?: string; // Optional override path for Go binary
 
   // Meta-agent configuration
@@ -300,7 +299,7 @@ export interface FileStorageConfig {
   extensions?: string[];
 }
 
-export interface PythonBridge {
+export interface Bridge {
   completion(
     model: string,
     query: string,

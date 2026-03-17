@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.1.0] - 2026-03-17
+
+### Breaking Changes
+- **Removed Python bridges** — pythonia and bunpy bridges have been fully removed. The Go backend is now the only bridge
+- **Removed `pythonia_timeout` config** — This config option no longer exists
+- **`BridgeType` simplified** — Now only accepts `'go'` (was `'go' | 'pythonia' | 'bunpy' | 'auto'`)
+- **`PythonBridge` interface renamed** — Now exported as `Bridge`
+
+### Improvements
+- **Prominent Go missing warning** — postinstall now shows a clear boxed warning when Go is not installed, explaining that the package will not work at runtime
+- **`@aws-sdk/client-s3` peer dependency** — Declared as optional peer dependency so package managers can warn users who need S3 file storage
+- **`exports` field in package.json** — Proper conditional exports for better ESM/CJS compatibility
+- **Cleaner npm bundle** — Removed 2 unused source files (bunpy-bridge, rlm-bridge) from the package
+
 ## [4.6.0] - 2026-03-04
 
 ### Context Overflow Detection & Recovery

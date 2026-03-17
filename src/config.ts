@@ -30,7 +30,6 @@ const KNOWN_CONFIG_KEYS = new Set([
   'api_key',
   'max_depth',
   'max_iterations',
-  'pythonia_timeout',
   'go_binary_path',
   'meta_agent',
   'observability',
@@ -91,12 +90,6 @@ export function validateConfig(config: RLMExtendedConfig): ValidationResult {
   if (config.max_iterations !== undefined) {
     if (typeof config.max_iterations !== 'number' || config.max_iterations < 1) {
       issues.push({ level: 'error', field: 'max_iterations', message: 'max_iterations must be a positive integer' });
-    }
-  }
-
-  if (config.pythonia_timeout !== undefined) {
-    if (typeof config.pythonia_timeout !== 'number' || config.pythonia_timeout < 0) {
-      issues.push({ level: 'error', field: 'pythonia_timeout', message: 'pythonia_timeout must be a non-negative number (milliseconds)' });
     }
   }
 

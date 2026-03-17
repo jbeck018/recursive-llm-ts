@@ -16,7 +16,7 @@ export class RLMAgentCoordinator {
   constructor(
     model: string,
     rlmConfig: RLMConfig = {},
-    bridgeType: BridgeType = 'auto',
+    bridgeType: BridgeType = 'go',
     coordinatorConfig: CoordinatorConfig = {}
   ) {
     this.rlm = new RLM(model, rlmConfig, bridgeType);

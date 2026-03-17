@@ -44,11 +44,8 @@ npm install recursive-llm-ts
 
 ### Prerequisites
 
-- **Node.js 16+** or **Bun 1.0+**
+- **Node.js 16+**
 - **Go 1.25+** (for building from source during install)
-
-> **Note**: The package includes pre-built binaries for common platforms. Go is only needed if building from source.
-
 ### Go Binary (Automatic)
 
 The `postinstall` script automatically builds the Go binary during installation. If Go is not available, the script will warn but not fail.
@@ -72,13 +69,11 @@ export RLM_GO_BINARY=/custom/path/to/rlm-go
 
 ## Usage
 
-### Automatic Runtime Detection (Recommended)
-
+### Quick Start
 ```typescript
 import { RLM } from 'recursive-llm-ts';
 
 // Initialize RLM with a model
-// Automatically detects Node.js or Bun and uses appropriate bridge
 const rlm = new RLM('gpt-4o-mini', {
   max_iterations: 15,
   api_key: process.env.OPENAI_API_KEY
@@ -420,9 +415,6 @@ const rlmGo = new RLM('gpt-4o-mini', {
   api_key: process.env.OPENAI_API_KEY
 }, 'go');
 
-// Legacy: Use Python bridges (bunpy for Bun, pythonia for Node)
-// Note: Requires separate Python dependencies
-const rlmPython = new RLM('gpt-4o-mini', {}, 'bunpy');
 ```
 
 
@@ -781,7 +773,6 @@ interface RLMConfig {
   // Execution limits
   max_depth?: number;            // Maximum recursion depth (default: 5)
   max_iterations?: number;       // Maximum REPL iterations per call (default: 30)
-  pythonia_timeout?: number;     // Python bridge timeout in ms (default: 100000ms = 100s)
   go_binary_path?: string;       // Override path for Go binary (optional)
 
   // Meta-agent configuration
@@ -1005,7 +996,6 @@ For large documents or queue-based processing that may take longer than the defa
 ```typescript
 const rlm = new RLM('gpt-4o-mini', {
   max_iterations: 50,           // Allow more iterations for complex processing
-  pythonia_timeout: 600000,     // 10 minutes timeout for Python bridge
   timeout: 300                  // 5 minutes timeout for LLM API calls
 });
 
